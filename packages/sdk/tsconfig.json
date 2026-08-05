@@ -1,0 +1,12 @@
+{
+  "extends": "../config/tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "module": "CommonJS",
+    "paths": {
+      "@launchpad/shared": ["../shared/dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}
