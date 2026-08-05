@@ -39,7 +39,7 @@ enum IndustryType {
 }
 
 model Organization {
-  id           string         @id @default(uuid())
+  id           String         @id @default(uuid())
   name         String
   domain       String         @unique
   industry     IndustryType   @default(CRM)
