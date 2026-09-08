@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --lp-background: #FFFFFF;
+  --lp-mint: #F3F9F5;
+  --lp-pistachio: #DDEEDF;
+  --lp-primary: #3F7659;
+  --lp-primary-dark: #173C2D;
+  --lp-accent: #F3EBDD;
+  --lp-text: #173C2D;
+  --lp-muted: #5A7165;
+  --lp-border: #E2ECE5;
+  --lp-surface: #FFFFFF;
+}
+
+body {
+  background-color: var(--lp-mint);
+  color: var(--lp-text);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F3F9F5;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C4DFC8;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3F7659;
+}
+
+/* Animations and Utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--lp-border);
+}
+
+.gradient-green-badge {
+  background: linear-gradient(135deg, #DDEEDF 0%, #F3F9F5 100%);
+  border: 1px solid #C5E2C8;
+}
+
+.badge-pistachio {
+  background-color: #DDEEDF;
+  color: #173C2D;
+}
+
+.badge-mint {
+  background-color: #F3F9F5;
+  color: #3F7659;
+  border: 1px solid #DDEEDF;
+}
