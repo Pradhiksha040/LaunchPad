@@ -1,0 +1,306 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OperatingMode {
+  STANDALONE
+  INTEGRATION_HUB
+}
+
+enum ConnectorType {
+  GENERIC_REST
+  GRAPHQL
+  SOAP
+  SAP
+  ORACLE
+  SALESFORCE
+  MICROSOFT_DYNAMICS
+  CUSTOM
+}
+
+enum IndustryType {
+  HEALTHCARE
+  EDUCATION
+  FOOD_DELIVERY
+  CRM
+  HRMS
+  E_COMMERCE
+  RENTAL
+  MARKETPLACE
+  REAL_ESTATE
+  FREELANCER
+  LOGISTICS
+  BOOKING
+}
+
+model Organization {
+  id           String         @id @default(uuid())
+  name         String
+  domain       String         @unique
+  industry     IndustryType   @default(CRM)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  tenantConfig TenantConfig?
+  users        User[]
+  roles        Role[]
+  customers    Customer[]
+  products     Product[]
+  orders       Order[]
+  appointments Appointment[]
+  invoices     Invoice[]
+  employees    Employee[]
+  students     Student[]
+  vendors      Vendor[]
+  suppliers    Supplier[]
+  workflows    Workflow[]
+  auditLogs    AuditLog[]
+  secrets      Secret[]
+  featureFlags FeatureFlag[]
+}
+
+model TenantConfig {
+  id                    String        @id @default(uuid())
+  organizationId        String        @unique
+  organization          Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  mode                  OperatingMode @default(STANDALONE)
+  connectorType         ConnectorType @default(GENERIC_REST)
+  connectorEndpoint     String?
+  connectorCredentials  Json?
+  fieldMappings         Json?
+  headerTransformations Json?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+}
+
+model User {
+  id             String     @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String     @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  isActive       Boolean    @default(true)
+  apiKey         String?    @unique
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  roles          UserRole[]
+}
+
+model Role {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  permissions    String[]
+  users          UserRole[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Customer {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  firstName      String
+  lastName       String
+  email          String
+  phone          String?
+  companyName    String?
+  taxId          String?
+  status         String       @default("ACTIVE")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Product {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  sku            String
+  name           String
+  description    String?
+  price          Float
+  currency       String       @default("USD")
+  stockQuantity  Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Order {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  orderNumber    String
+  customerId     String
+  customerName   String
+  status         String       @default("PENDING")
+  totalAmount    Float
+  currency       String       @default("USD")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Appointment {
+  id                    String       @id @default(uuid())
+  organizationId        String
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  externalId            String?
+  appointmentNumber     String
+  patientIdOrCustomerId String
+  patientOrCustomerName String
+  providerIdOrDoctorId  String
+  providerOrDoctorName  String
+  startTime             DateTime
+  endTime               DateTime
+  status                String       @default("SCHEDULED")
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+model Invoice {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  invoiceNumber  String
+  customerId     String
+  customerName   String
+  status         String       @default("DRAFT")
+  totalAmount    Float
+  currency       String       @default("USD")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Employee {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  employeeCode   String
+  firstName      String
+  lastName       String
+  email          String
+  department     String
+  designation    String
+  joiningDate    DateTime
+  status         String       @default("ACTIVE")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Student {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  rollNumber     String
+  firstName      String
+  lastName       String
+  email          String
+  gradeOrClass   String
+  enrollmentDate DateTime
+  status         String       @default("ENROLLED")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Vendor {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  vendorCode     String
+  name           String
+  email          String
+  category       String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Supplier {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  supplierCode   String
+  name           String
+  email          String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Workflow {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  triggerEvent   String
+  steps          Json
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  title     String
+  message   String
+  type      String   @default("INFO")
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?
+  action         String
+  resource       String
+  payload        Json?
+  createdAt      DateTime     @default(now())
+}
+
+model Secret {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  key            String
+  encryptedValue String
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, key])
+}
+
+model FeatureFlag {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  flagName       String
+  isEnabled      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, flagName])
+}

@@ -1,43 +1,42 @@
-# LaunchPad OS — Reusable Application Platform Frontend
+# 🚀 LaunchPad OS — Enterprise White-Label Business Application Platform
 
-LaunchPad OS is an enterprise-grade reusable application development and deployment platform. Instead of rebuilding common capabilities (authentication, organizations, role-based access control, notification dispatching, file management, API routing, audit logging, and layout frames) for every business application, LaunchPad provides reusable core modules and templates to accelerate application delivery.
+LaunchPad OS is an enterprise-grade reusable application development and deployment platform with full NestJS + Prisma + PostgreSQL backend integration. Instead of rebuilding common capabilities (authentication, organizations, role-based access control, notification dispatching, file management, API routing, audit logging, and layout frames) for every business application, LaunchPad provides reusable core modules and templates to accelerate application delivery.
 
 ---
 
-## 🌟 Product Vision & Operational Engine
+## 🌟 Key Operating Modes
 
-LaunchPad OS explicitly supports two distinct operational modes:
+LaunchPad OS supports two primary architectural operating modes:
 
-### Mode 1 — Standalone Mode
+### 1. 🏢 Standalone Mode
 For businesses that require complete application infrastructure.
 ```text
 Customer
    ↓
-LaunchPad Frontend
+LaunchPad Frontend (Next.js 14+)
    ↓
-LaunchPad Backend
+LaunchPad Backend (NestJS + Swagger API)
    ↓
-LaunchPad Database
+LaunchPad Database (PostgreSQL + Prisma ORM)
 ```
 
-### Mode 2 — Integration Hub Mode
+### 2. ⚡ Integration Hub Mode
 For companies with pre-existing backends (e.g. PHP CRM, Python Django HRMS, Legacy Java VMS).
 ```text
 LaunchPad Frontend
        ↓
-Integration Hub
+Integration Hub API
        ↓
-Connector Layer
+Connector Layer (REST / Webhook / DB)
        ↓
 Existing Customer Backend (PHP / Python / Java)
        ↓
 Customer Database (Source of Truth)
 ```
-> **Key Principle**: LaunchPad does not force customers to replace their existing backend systems. In Integration Hub Mode, existing systems remain the authoritative source of truth.
 
 ---
 
-## 🎨 Visual Identity & Color System
+## 🎨 Visual Identity & Palette
 
 Designed with a calm, premium **Pistachio Green + White + Deep Green** corporate aesthetic:
 
@@ -48,99 +47,62 @@ Designed with a calm, premium **Pistachio Green + White + Deep Green** corporate
 - **Deep Green**: `#173C2D` (Headings, logo, strong text)
 - **Soft Beige Accent**: `#F3EBDD` (Secondary accent)
 
-**Color Ratio**: `70% White/Neutral / 20% Soft Mint/Pistachio / 10% Deep Green/Primary Green`
-
 ---
 
 ## 🚀 Key Features & Modules
 
 - **LaunchPad Control Center**: Dashboard monitoring active applications, connector health, API traffic, and deployment logs.
-- **7-Step Application Creation Wizard**: Multi-step builder (App Details -> Mode Selection -> Template -> Core Modules -> Custom Branding -> Review -> Animated Build Process).
-- **Template Marketplace**: Pre-configured enterprise templates (Visitor Management, Content OS, CRM Portal, HRMS, School Management, Healthcare, E-Commerce).
-- **Integration Hub & Connector Registry**: Architecture visualizer, REST/Webhook connectors, and live endpoint connection tester with latency display.
+- **Dynamic Application Module System**: Template-specific module catalogs (VMS, CRM, HRMS, Content OS, School, Event, Healthcare, Ecommerce, etc.) with custom module creation, dependency resolution, and visibility/permission configuration.
+- **Backend API & Data Persistence**: Connected NestJS REST API with Prisma ORM, JWT Auth, RBAC guards, and Audit Logging.
+- **7-Step Application Creation Wizard**: Multi-step builder with animated deployment.
+- **Template Marketplace**: Pre-configured enterprise templates.
+- **Integration Hub & Connector Registry**: Architecture visualizer, REST/Webhook connectors, and live endpoint connection tester.
 - **Visual Builders**: Visual Page Builder, Form Builder, and Workflow Builder.
-- **Identity & Access Management**: Users, Multi-tenant Organizations, and Role-Based Access Control (RBAC) Permission Matrix.
-- **Interactive Demos**:
-  - **Visitor Management System (VMS)**: Standalone Mode generated application.
-  - **Existing PHP CRM Hub**: Integration Hub Mode with live API data mapping.
-  - **Existing Python HRMS**: Integration Hub Mode with Django API sync.
-- **Theme Builder & Settings**: Live dynamic CSS custom variable customization.
+- **Identity & Access Management**: Multi-tenant Organizations, Users, and RBAC Permission Matrix.
 
 ---
 
-## 🛠️ Technology Stack
+## 💻 Quick Start & Running Locally
 
-- **Framework**: Next.js 14+ (App Router, React 18, TypeScript)
-- **Styling**: Tailwind CSS v3 + CSS custom variables (`--lp-primary`, `--lp-pistachio`, etc.)
-- **Icons**: Lucide React
-- **Data Visualization**: Recharts
-- **Animations**: Framer Motion / Tailwind CSS Keyframes
-- **State & Services**: API-ready mock service layer (`src/services/`)
+### 1. Frontend Setup (Next.js 14+)
+```bash
+# Install dependencies
+npm install
 
----
+# Run frontend development server
+npm run dev
+# App will be accessible at http://localhost:3000
+```
 
-## 📁 Project Structure
+### 2. Backend Setup (NestJS + Prisma)
+```bash
+cd backend
 
-```text
-src/
-├── app/
-│   ├── layout.tsx
-│   ├── page.tsx                           # Landing Page
-│   ├── login/                             # Login Page
-│   └── (dashboard)/
-│       ├── dashboard/                     # Control Center
-│       ├── applications/                  # Apps Catalog & App Detail ([id])
-│       │   └── create/                    # 7-Step Application Creation Wizard
-│       ├── templates/                     # Template Marketplace
-│       ├── integrations/                  # Integration Hub & Connectors
-│       ├── builders/                      # Page, Form, and Workflow Builders
-│       ├── users/                         # Users & Permission Matrix
-│       ├── organizations/                 # Multi-Tenant Organizations
-│       ├── analytics/                     # Enterprise Analytics
-│       ├── reports/                       # Data Exports & Reports
-│       ├── billing/                       # SaaS Billing Plans
-│       ├── audit-logs/                    # Security Audit Logs
-│       ├── api-management/                # Developer API Keys
-│       ├── developer/                     # Developer Portal & Security Center
-│       ├── settings/                      # Settings & Theme Builder
-│       └── demos/                         # Interactive Demos (VMS, PHP CRM, Python HRMS)
-├── components/
-│   ├── navigation/                        # Sidebar & Navbar
-│   └── ui/                                # Base UI components
-├── context/
-│   └── BrandingContext.tsx                # Dynamic CSS variable context
-├── mock/
-│   └── data.ts                            # Typed enterprise mock data
-├── services/                              # Async API-Ready Mock Service Layer
-├── types/
-│   └── index.ts                           # Comprehensive TypeScript interfaces
-└── styles/
-    └── globals.css                        # CSS variable declarations
+# Install backend dependencies
+npm install
+
+# Generate Prisma client
+npx prisma generate
+
+# Apply migrations & seed database
+npx prisma db seed
+
+# Run backend development server
+npm run start:dev
+# API will be accessible at http://localhost:4000
+# Swagger API Docs: http://localhost:4000/api/docs
 ```
 
 ---
 
-## 💻 Installation & Local Running
+## 🛠️ Tech Stack
 
-1. **Install Dependencies**:
-   ```bash
-   npm install
-   ```
-
-2. **Run Development Server**:
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-3. **Verify Build & Linting**:
-   ```bash
-   npm run lint
-   npm run build
-   ```
+- **Frontend**: Next.js 14+, React 18, TypeScript, Tailwind CSS, Lucide React, Recharts, Framer Motion
+- **Backend**: NestJS, TypeScript, Prisma ORM, PostgreSQL, JWT, bcrypt, class-validator, Swagger OpenAPI
+- **Architecture**: Modular Monorepo, REST API, Multi-tenant RBAC
 
 ---
 
-## 🔌 API-Ready Architecture Note
+## 📄 License
 
-> **Note**: This repository currently contains the **LaunchPad OS frontend and mock services**. Real backend APIs and database integrations will be connected in the next development phase without changing the frontend UI components.
+MIT © LaunchPad Platform Team
