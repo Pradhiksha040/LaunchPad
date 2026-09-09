@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
@@ -18,10 +18,15 @@ import {
   Zap,
   Check,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Plus,
+  Settings,
+  Lock,
+  Search
 } from 'lucide-react';
 import { applicationService } from '@/services/applicationService';
-import { Application, AppEnvironment } from '@/types';
+import { Application, AppEnvironment, AppModuleItem } from '@/types';
+import { getModulesForTemplate, getTemplateDisplayName } from '@/data/moduleCatalog';
 import { cn, formatDate } from '@/lib/utils';
 
 export default function ApplicationDetailPage() {
@@ -32,6 +37,7 @@ export default function ApplicationDetailPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'modules' | 'branding' | 'integrations' | 'deployment'>('overview');
   const [deploying, setDeploying] = useState(false);
   const [deploySuccess, setDeploySuccess] = useState(false);
+  const [moduleSearch, setModuleSearch] = useState('');
 
   useEffect(() => {
     async function loadApp() {
@@ -40,6 +46,12 @@ export default function ApplicationDetailPage() {
     }
     loadApp();
   }, [appId]);
+
+  // Load catalog for this specific app's template
+  const templateCatalog = useMemo(() => {
+    if (!app) return [];
+    return getModulesForTemplate(app.templateId || app.type || app.name);
+  }, [app]);
 
   const handleDeploy = async (env: AppEnvironment) => {
     if (!app) return;
@@ -55,6 +67,20 @@ export default function ApplicationDetailPage() {
     setTimeout(() => setDeploySuccess(false), 3000);
   };
 
+  const toggleAppModule = (moduleName: string) => {
+    if (!app) return;
+    const currentModules = app.modules.map((m) => (typeof m === 'string' ? m : m.name));
+    let updated: string[];
+
+    if (currentModules.includes(moduleName)) {
+      updated = currentModules.filter((m) => m !== moduleName);
+    } else {
+      updated = [...currentModules, moduleName];
+    }
+
+    setApp({ ...app, modules: updated });
+  };
+
   if (!app) {
     return (
       <div className="p-12 text-center text-[#5A7165]">
@@ -63,6 +89,8 @@ export default function ApplicationDetailPage() {
       </div>
     );
   }
+
+  const enabledModuleNames = app.modules.map((m) => (typeof m === 'string' ? m : m.name));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -95,36 +123,6 @@ export default function ApplicationDetailPage() {
               Preview Generated UI <ArrowUpRight size={15} />
             </Link>
           </div>
-        </div>
-
-        {/* Environment Bar */}
-        <div className="p-4 bg-[#F3F9F5] border border-[#DDEEDF] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold text-[#173C2D]">Active Target Environment:</span>
-            <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-[#E2ECE5]">
-              {(['development', 'staging', 'production'] as const).map((env) => (
-                <button
-                  key={env}
-                  onClick={() => handleDeploy(env)}
-                  disabled={deploying}
-                  className={cn(
-                    'px-3 py-1 text-xs font-bold capitalize rounded-md transition-all',
-                    app.environment === env
-                      ? 'bg-[#3F7659] text-white shadow-2xs'
-                      : 'text-[#5A7165] hover:bg-[#F3F9F5]'
-                  )}
-                >
-                  {env}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {deploySuccess && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-lg animate-in fade-in">
-              <CheckCircle2 size={14} /> Environment Promoted Successfully!
-            </span>
-          )}
         </div>
 
         {/* Navigation Tabs */}
@@ -200,16 +198,88 @@ export default function ApplicationDetailPage() {
         </div>
       )}
 
+      {/* MODULES TAB */}
       {activeTab === 'modules' && (
-        <div className="p-6 bg-white border border-[#E2ECE5] rounded-2xl shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-[#173C2D]">Active Application Modules</h3>
+        <div className="p-6 bg-white border border-[#E2ECE5] rounded-2xl shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-extrabold text-[#173C2D]">
+                {app.name} — Application Modules Catalog
+              </h3>
+              <p className="text-xs text-[#5A7165]">
+                Manage active modular capabilities specific to this application build.
+              </p>
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A7165]" />
+              <input
+                type="text"
+                value={moduleSearch}
+                onChange={(e) => setModuleSearch(e.target.value)}
+                placeholder="Search app modules..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#F3F9F5] border border-[#E2ECE5] rounded-xl text-[#173C2D]"
+              />
+            </div>
+          </div>
+
+          {/* Active vs Available Modules Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {app.modules.map((m) => (
-              <div key={m} className="p-4 rounded-xl bg-[#F3F9F5] border border-[#DDEEDF] flex items-center justify-between">
-                <span className="text-xs font-bold text-[#173C2D]">{m}</span>
-                <span className="p-1 bg-[#3F7659] text-white rounded-full"><Check size={12} /></span>
-              </div>
-            ))}
+            {templateCatalog
+              .filter((m) =>
+                moduleSearch.trim() === ''
+                  ? true
+                  : m.name.toLowerCase().includes(moduleSearch.toLowerCase()) ||
+                    m.category.toLowerCase().includes(moduleSearch.toLowerCase())
+              )
+              .map((modItem) => {
+                const isEnabled = enabledModuleNames.includes(modItem.name);
+                return (
+                  <div
+                    key={modItem.id}
+                    onClick={() => toggleAppModule(modItem.name)}
+                    className={cn(
+                      'p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between space-y-3 relative',
+                      isEnabled
+                        ? 'border-[#3F7659] bg-[#F3F9F5] shadow-xs'
+                        : 'border-[#E2ECE5] bg-white opacity-70 hover:opacity-100 hover:border-[#DDEEDF]'
+                    )}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase rounded bg-white border border-[#E2ECE5] text-[#3F7659]">
+                          {modItem.category}
+                        </span>
+                        <span
+                          className={cn(
+                            'w-5 h-5 rounded-lg border flex items-center justify-center text-xs font-bold transition-all',
+                            isEnabled
+                              ? 'bg-[#3F7659] text-white border-transparent'
+                              : 'border-[#E2ECE5] bg-white'
+                          )}
+                        >
+                          {isEnabled && <Check size={12} />}
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-[#173C2D]">{modItem.name}</h4>
+                      <p className="text-[11px] text-[#5A7165] mt-1 line-clamp-2 leading-relaxed">
+                        {modItem.description}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] pt-2 border-t border-[#E2ECE5]/60">
+                      <span className={cn('font-bold', isEnabled ? 'text-[#3F7659]' : 'text-[#5A7165]')}>
+                        {isEnabled ? '✓ Module Enabled' : 'Click to Enable'}
+                      </span>
+                      {modItem.required && (
+                        <span className="font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                          <Lock size={9} /> Core Required
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}

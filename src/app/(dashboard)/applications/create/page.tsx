@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -21,38 +21,105 @@ import {
   Users,
   Briefcase,
   FileText,
-  Activity
+  Activity,
+  Search,
+  Plus,
+  Settings,
+  Info,
+  X,
+  Lock,
+  Package,
+  Sliders,
+  Calendar,
+  LogIn,
+  LogOut,
+  QrCode,
+  BellRing,
+  Building2,
+  Printer,
+  ShieldAlert,
+  AlertTriangle,
+  Flame,
+  BarChart3,
+  Tag,
+  Target,
+  BadgeDollarSign,
+  Kanban,
+  TrendingUp,
+  Clock,
+  Mail,
+  MessageSquare,
+  Ticket,
+  Megaphone,
+  CreditCard,
+  GraduationCap,
+  School,
+  Bus,
+  Utensils,
+  Bike,
+  HeartPulse,
+  Stethoscope,
+  Pill,
+  TestTube,
+  RotateCcw,
+  Star,
+  Database,
+  UserPlus,
+  UserCheck,
+  History,
+  UserX,
+  CheckSquare
 } from 'lucide-react';
 import { applicationService } from '@/services/applicationService';
 import { MOCK_TEMPLATES } from '@/mock/data';
-import { AppMode, BrandingConfig } from '@/types';
+import { AppMode, BrandingConfig, AppModuleItem } from '@/types';
+import { getModulesForTemplate, getTemplateDisplayName } from '@/data/moduleCatalog';
 import { cn } from '@/lib/utils';
 
 export default function CreateApplicationWizardPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
 
-  // Form State
+  // Step 1: Form State
   const [name, setName] = useState('Visitor Pass OS');
   const [description, setDescription] = useState('Enterprise visitor check-in, QR badge printing, and host notifications.');
   const [industry, setIndustry] = useState('Real Estate & Facilities');
   const [appType, setAppType] = useState('Facilities & Security Management');
+
+  // Step 2: Mode State
   const [mode, setMode] = useState<AppMode>('standalone');
-  const [selectedTemplateId, setSelectedTemplateId] = useState('tpl-vms');
-  const [selectedModules, setSelectedModules] = useState<string[]>([
-    'Visitor Registration',
-    'Appointments',
-    'Check-in/Out',
-    'Host Alerts',
-    'QR Badges'
-  ]);
+
+  // Step 3: Template State
+  const [selectedTemplateId, setSelectedTemplateId] = useState('template-vms-01');
+
+  // Step 4: DYNAMIC MODULE SYSTEM STATE
+  const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>([]);
+  const [customModules, setCustomModules] = useState<AppModuleItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'recommended' | 'required' | 'selected' | 'custom'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [dependencyNotice, setDependencyNotice] = useState<string | null>(null);
+
+  // Modals state
+  const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
+  const [newCustomModule, setNewCustomModule] = useState({
+    name: '',
+    description: '',
+    category: 'Custom',
+    icon: 'Package',
+    type: 'Custom',
+  });
+
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [configuringModule, setConfiguringModule] = useState<AppModuleItem | null>(null);
+  const [configuredModuleMap, setConfiguredModuleMap] = useState<Record<string, AppModuleItem>>({});
 
   // Integration Hub details if mode === 'integration_hub'
   const [targetSystemName, setTargetSystemName] = useState('Existing Enterprise PHP CRM');
   const [targetTechStack, setTargetTechStack] = useState('PHP 8.2 / Laravel');
   const [targetEndpointUrl, setTargetEndpointUrl] = useState('https://crm.company.com/api/v2');
 
-  // Branding State
+  // Step 5: Branding State
   const [branding, setBranding] = useState<BrandingConfig>({
     appName: 'VisitorPass OS',
     primaryColor: '#3F7659',
@@ -62,14 +129,146 @@ export default function CreateApplicationWizardPage() {
     borderRadius: '0.625rem',
   });
 
-  // Creation animation state
+  // Step 7: Creation animation state
   const [creating, setCreating] = useState(false);
   const [creationStepIndex, setCreationStepIndex] = useState(0);
-  const [createdAppId, setCreatedAppId] = useState<string | null>(null);
 
+  // Get catalog modules for currently selected template
+  const templateCatalog = useMemo(() => {
+    return getModulesForTemplate(selectedTemplateId || appType || name);
+  }, [selectedTemplateId, appType, name]);
+
+  const templateDisplayName = useMemo(() => {
+    return getTemplateDisplayName(selectedTemplateId || appType || name);
+  }, [selectedTemplateId, appType, name]);
+
+  // When template changes, auto-initialize required and default modules
+  useEffect(() => {
+    const defaultIds = templateCatalog
+      .filter((m) => m.required || m.enabledByDefault || m.recommended)
+      .map((m) => m.id);
+    setSelectedModuleIds(defaultIds);
+  }, [selectedTemplateId, templateCatalog]);
+
+  // Combined module list (Template modules + User Custom modules)
+  const allModules = useMemo(() => {
+    return [...templateCatalog, ...customModules];
+  }, [templateCatalog, customModules]);
+
+  // Extract unique categories for current template
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    allModules.forEach((m) => set.add(m.category));
+    return Array.from(set);
+  }, [allModules]);
+
+  // Filtered module list based on search, status filter, and category filter
+  const filteredModules = useMemo(() => {
+    return allModules.filter((mod) => {
+      // Category check
+      if (selectedCategory !== 'all' && mod.category !== selectedCategory) {
+        return false;
+      }
+      // Status check
+      if (statusFilter === 'recommended' && !mod.recommended) return false;
+      if (statusFilter === 'required' && !mod.required) return false;
+      if (statusFilter === 'selected' && !selectedModuleIds.includes(mod.id)) return false;
+      if (statusFilter === 'custom' && !mod.custom) return false;
+
+      // Search query check
+      if (searchQuery.trim() !== '') {
+        const query = searchQuery.toLowerCase();
+        const nameMatch = mod.name.toLowerCase().includes(query);
+        const descMatch = mod.description.toLowerCase().includes(query);
+        const catMatch = mod.category.toLowerCase().includes(query);
+        return nameMatch || descMatch || catMatch;
+      }
+
+      return true;
+    });
+  }, [allModules, selectedCategory, statusFilter, searchQuery, selectedModuleIds]);
+
+  // Helper to toggle module selection with dependency auto-enable
+  const toggleModuleSelection = (moduleItem: AppModuleItem) => {
+    if (moduleItem.required && selectedModuleIds.includes(moduleItem.id)) {
+      return; // Required modules cannot be disabled
+    }
+
+    if (selectedModuleIds.includes(moduleItem.id)) {
+      setSelectedModuleIds((prev) => prev.filter((id) => id !== moduleItem.id));
+    } else {
+      let newSelected = [...selectedModuleIds, moduleItem.id];
+      let addedDeps: string[] = [];
+
+      if (moduleItem.dependencies && moduleItem.dependencies.length > 0) {
+        moduleItem.dependencies.forEach((depId) => {
+          if (!newSelected.includes(depId)) {
+            newSelected.push(depId);
+            const depMod = allModules.find((m) => m.id === depId);
+            if (depMod) addedDeps.push(depMod.name);
+          }
+        });
+      }
+
+      setSelectedModuleIds(newSelected);
+
+      if (addedDeps.length > 0) {
+        setDependencyNotice(
+          `${addedDeps.join(', ')} was automatically enabled because ${moduleItem.name} depends on it.`
+        );
+        setTimeout(() => setDependencyNotice(null), 4500);
+      }
+    }
+  };
+
+  // Create custom module handler
+  const handleCreateCustomModuleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustomModule.name.trim()) return;
+
+    const customId = `custom-${Date.now().toString(36)}`;
+    const createdItem: AppModuleItem = {
+      id: customId,
+      name: newCustomModule.name.trim(),
+      description: newCustomModule.description.trim() || 'Custom user-defined application capability.',
+      category: newCustomModule.category || 'Custom',
+      icon: newCustomModule.icon || 'Package',
+      recommended: true,
+      enabledByDefault: true,
+      custom: true,
+      visibility: { dashboard: true, sidebar: true, reports: false },
+      permissions: { view: true, create: true, edit: true, delete: false },
+    };
+
+    setCustomModules((prev) => [...prev, createdItem]);
+    setSelectedModuleIds((prev) => [...prev, customId]);
+    setNewCustomModule({
+      name: '',
+      description: '',
+      category: 'Custom',
+      icon: 'Package',
+      type: 'Custom',
+    });
+    setIsCustomModalOpen(false);
+  };
+
+  // Configure module submit handler
+  const handleSaveModuleConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (configuringModule) {
+      setConfiguredModuleMap((prev) => ({
+        ...prev,
+        [configuringModule.id]: configuringModule,
+      }));
+      setIsConfigModalOpen(false);
+      setConfiguringModule(null);
+    }
+  };
+
+  // Progress steps for wizard
   const creationProgressSteps = [
     'Creating application structure...',
-    'Injecting selected modules & schemas...',
+    'Injecting selected dynamic modules & schemas...',
     'Applying custom visual branding identity...',
     mode === 'standalone' ? 'Initializing LaunchPad Database & API...' : 'Binding Integration Hub Connector Gateway...',
     'Preparing application environment & deployment script...'
@@ -95,6 +294,10 @@ export default function CreateApplicationWizardPage() {
       await new Promise((r) => setTimeout(r, 600));
     }
 
+    const selectedModuleNames = allModules
+      .filter((m) => selectedModuleIds.includes(m.id))
+      .map((m) => m.name);
+
     const created = await applicationService.createApplication({
       name,
       description,
@@ -102,8 +305,8 @@ export default function CreateApplicationWizardPage() {
       type: appType,
       mode,
       templateId: selectedTemplateId,
-      templateName: MOCK_TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || 'Custom Template',
-      modules: selectedModules,
+      templateName: MOCK_TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || templateDisplayName,
+      modules: selectedModuleNames,
       branding,
       targetBackend: mode === 'integration_hub' ? {
         systemName: targetSystemName,
@@ -113,21 +316,28 @@ export default function CreateApplicationWizardPage() {
       } : undefined,
     });
 
-    setCreatedAppId(created.id);
     setCreating(false);
+    router.push(`/applications/${created.id}`);
   };
 
-  const toggleModule = (moduleName: string) => {
-    if (selectedModules.includes(moduleName)) {
-      setSelectedModules(selectedModules.filter((m) => m !== moduleName));
-    } else {
-      setSelectedModules([...selectedModules, moduleName]);
-    }
-  };
+  // Calculate selected module breakdown for summary
+  const moduleSummary = useMemo(() => {
+    const selectedList = allModules.filter((m) => selectedModuleIds.includes(m.id));
+    const requiredCount = selectedList.filter((m) => m.required).length;
+    const optionalCount = selectedList.filter((m) => !m.required && !m.custom).length;
+    const customCount = selectedList.filter((m) => m.custom).length;
+    return {
+      total: selectedList.length,
+      required: requiredCount,
+      optional: optionalCount,
+      custom: customCount,
+      list: selectedList,
+    };
+  }, [allModules, selectedModuleIds]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-300 pb-12">
-      {/* Header */}
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-300 pb-16">
+      {/* Wizard Top Header */}
       <div className="flex items-center justify-between">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-[#3F7659]">
@@ -137,13 +347,13 @@ export default function CreateApplicationWizardPage() {
         </div>
         <Link
           href="/applications"
-          className="text-xs font-semibold text-[#5A7165] hover:text-[#173C2D]"
+          className="text-xs font-semibold text-[#5A7165] hover:text-[#173C2D] transition-colors"
         >
           Cancel & Exit
         </Link>
       </div>
 
-      {/* Progress Bar */}
+      {/* Progress Indicator */}
       <div className="w-full bg-[#E2ECE5] h-2 rounded-full overflow-hidden">
         <div
           className="bg-[#3F7659] h-full transition-all duration-300 ease-out"
@@ -151,8 +361,9 @@ export default function CreateApplicationWizardPage() {
         />
       </div>
 
-      {/* Wizard Step Containers */}
+      {/* Main Wizard Card Container */}
       <div className="bg-white border border-[#E2ECE5] rounded-2xl p-6 md:p-8 shadow-xs">
+
         {/* STEP 1: Basic Application Details */}
         {step === 1 && (
           <div className="space-y-6 animate-in fade-in duration-200">
@@ -197,6 +408,8 @@ export default function CreateApplicationWizardPage() {
                   <option value="Healthcare">Healthcare</option>
                   <option value="Education">Education</option>
                   <option value="Commerce">Commerce & D2C</option>
+                  <option value="Media & Publishing">Media & Publishing</option>
+                  <option value="Custom">Custom Enterprise</option>
                 </select>
               </div>
 
@@ -213,7 +426,7 @@ export default function CreateApplicationWizardPage() {
           </div>
         )}
 
-        {/* STEP 2: Choose Mode (Standalone vs Integration Hub) */}
+        {/* STEP 2: Choose Mode */}
         {step === 2 && (
           <div className="space-y-6 animate-in fade-in duration-200">
             <div>
@@ -224,7 +437,6 @@ export default function CreateApplicationWizardPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Option 1: Standalone */}
               <div
                 onClick={() => setMode('standalone')}
                 className={cn(
@@ -242,66 +454,51 @@ export default function CreateApplicationWizardPage() {
                 <div className="p-3 bg-[#DDEEDF] text-[#173C2D] w-fit rounded-xl">
                   <Server size={24} />
                 </div>
-
                 <div>
                   <span className="px-2 py-0.5 text-[10px] font-extrabold bg-[#3F7659] text-white rounded">
                     MODE 1
                   </span>
                   <h3 className="text-base font-bold text-[#173C2D] mt-1">Standalone Mode</h3>
                   <p className="text-xs text-[#5A7165] mt-1 leading-relaxed">
-                    LaunchPad provides complete application infrastructure (Frontend, Backend, Database, Auth, Storage).
+                    LaunchPad hosts database, authentication, RBAC, API endpoints, and storage. Ideal for brand new modular applications.
                   </p>
-                </div>
-
-                <div className="p-3 bg-white rounded-lg border border-[#E2ECE5] text-[11px] font-mono text-[#173C2D] space-y-1">
-                  <div>Customer → LaunchPad Frontend</div>
-                  <div>→ LaunchPad Backend → Database</div>
                 </div>
               </div>
 
-              {/* Option 2: Integration Hub */}
               <div
                 onClick={() => setMode('integration_hub')}
                 className={cn(
                   'p-6 rounded-2xl border-2 cursor-pointer transition-all space-y-4 relative',
                   mode === 'integration_hub'
-                    ? 'border-[#173C2D] bg-[#F3F9F5] shadow-md'
+                    ? 'border-[#3F7659] bg-[#F3F9F5] shadow-md'
                     : 'border-[#E2ECE5] bg-white hover:border-[#DDEEDF]'
                 )}
               >
                 {mode === 'integration_hub' && (
-                  <span className="absolute top-4 right-4 p-1 bg-[#173C2D] text-white rounded-full">
+                  <span className="absolute top-4 right-4 p-1 bg-[#3F7659] text-white rounded-full">
                     <Check size={14} />
                   </span>
                 )}
-                <div className="p-3 bg-[#F3EBDD] text-[#173C2D] w-fit rounded-xl">
+                <div className="p-3 bg-[#DDEEDF] text-[#173C2D] w-fit rounded-xl">
                   <Network size={24} />
                 </div>
-
                 <div>
                   <span className="px-2 py-0.5 text-[10px] font-extrabold bg-[#173C2D] text-white rounded">
                     MODE 2
                   </span>
                   <h3 className="text-base font-bold text-[#173C2D] mt-1">Integration Hub Mode</h3>
                   <p className="text-xs text-[#5A7165] mt-1 leading-relaxed">
-                    Connect LaunchPad UI to existing customer backends (PHP CRM, Python HRMS, Legacy VMS). Existing backend stays source of truth.
+                    Connect LaunchPad UI to existing customer backends (PHP CRM, Python HRMS, Legacy VMS).
                   </p>
-                </div>
-
-                <div className="p-3 bg-white rounded-lg border border-[#E2ECE5] text-[11px] font-mono text-[#173C2D] space-y-1">
-                  <div>LaunchPad Frontend → Integration Hub</div>
-                  <div>→ Connector → Existing Customer Backend</div>
                 </div>
               </div>
             </div>
 
-            {/* Extra configuration fields if Integration Hub selected */}
             {mode === 'integration_hub' && (
               <div className="p-5 rounded-xl bg-[#F3F9F5] border border-[#DDEEDF] space-y-4 animate-in fade-in">
                 <h4 className="text-xs font-bold text-[#173C2D] uppercase tracking-wider">
                   Target Customer System Metadata
                 </h4>
-
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <label className="text-[11px] font-bold text-[#173C2D]">System Name</label>
@@ -341,7 +538,7 @@ export default function CreateApplicationWizardPage() {
           <div className="space-y-6 animate-in fade-in duration-200">
             <div>
               <h2 className="text-lg font-bold text-[#173C2D]">Step 3: Choose Template</h2>
-              <p className="text-xs text-[#5A7165]">Start from a pre-configured enterprise starter or empty canvas.</p>
+              <p className="text-xs text-[#5A7165]">Start from a pre-configured enterprise starter or custom canvas.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -364,57 +561,277 @@ export default function CreateApplicationWizardPage() {
                   <p className="text-[11px] text-[#5A7165] line-clamp-2 leading-relaxed">{tpl.description}</p>
                 </div>
               ))}
+
+              <div
+                onClick={() => setSelectedTemplateId('custom')}
+                className={cn(
+                  'p-4 rounded-xl border cursor-pointer transition-all space-y-2 relative flex flex-col justify-between',
+                  selectedTemplateId === 'custom'
+                    ? 'border-[#3F7659] bg-[#F3F9F5] shadow-sm'
+                    : 'border-[#E2ECE5] bg-white hover:border-[#DDEEDF]'
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#3F7659] uppercase">Custom</span>
+                    {selectedTemplateId === 'custom' && <Check size={14} className="text-[#3F7659]" />}
+                  </div>
+                  <h4 className="text-xs font-bold text-[#173C2D]">Custom Application</h4>
+                  <p className="text-[11px] text-[#5A7165] leading-relaxed mt-1">
+                    Build your module set from scratch with fully configurable capabilities.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* STEP 4: Choose Modules */}
+        {/* STEP 4: DYNAMIC APPLICATION MODULE SYSTEM */}
         {step === 4 && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div>
-              <h2 className="text-lg font-bold text-[#173C2D]">Step 4: Enable Core Modules</h2>
-              <p className="text-xs text-[#5A7165]">Select modular capabilities to include in this application build.</p>
+            {/* Dynamic Application Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-[#E2ECE5]">
+              <div>
+                <h2 className="text-lg font-extrabold text-[#173C2D]">
+                  {selectedTemplateId === 'custom'
+                    ? 'Step 4: Build Your Module Set'
+                    : `Step 4: Configure ${templateDisplayName} Modules`}
+                </h2>
+                <p className="text-xs text-[#5A7165]">
+                  {selectedTemplateId === 'custom'
+                    ? 'Select and customize the modular building blocks for your custom application.'
+                    : `Select the modular capabilities your ${templateDisplayName} application needs.`}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCustomModalOpen(true)}
+                className="px-3.5 py-2 bg-[#3F7659] hover:bg-[#173C2D] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 w-fit"
+              >
+                <Plus size={14} /> Create Custom Module
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {[
-                'Visitor Registration',
-                'Appointments',
-                'Check-in/Out',
-                'Host Alerts',
-                'QR Badges',
-                'Audit Reports',
-                'Lead Pipeline',
-                'Support Tickets',
-                'Document Vault',
-                'Payroll View',
-                'Webhook Dispatcher',
-                'SEO Tools'
-              ].map((mod) => {
-                const checked = selectedModules.includes(mod);
-                return (
-                  <div
-                    key={mod}
-                    onClick={() => toggleModule(mod)}
-                    className={cn(
-                      'p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between text-xs font-semibold',
-                      checked
-                        ? 'border-[#3F7659] bg-[#DDEEDF] text-[#173C2D]'
-                        : 'border-[#E2ECE5] bg-white text-[#5A7165] hover:bg-[#F3F9F5]'
-                    )}
+            {/* Dependency Notice Toast Banner */}
+            {dependencyNotice && (
+              <div className="p-3 bg-[#DDEEDF] border border-[#3F7659]/30 text-[#173C2D] rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                <Info size={16} className="text-[#3F7659] shrink-0" />
+                <span>{dependencyNotice}</span>
+              </div>
+            )}
+
+            {/* Search and Filters Toolbar */}
+            <div className="space-y-3">
+              <div className="flex flex-col md:flex-row md:items-center gap-3">
+                {/* Search Bar */}
+                <div className="relative flex-1">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A7165]" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search modules by name, description, or category..."
+                    className="w-full pl-9 pr-4 py-2 text-xs bg-[#F3F9F5] border border-[#E2ECE5] rounded-xl text-[#173C2D] focus:outline-none focus:border-[#3F7659]"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5A7165] hover:text-[#173C2D]"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Status Filter Buttons */}
+                <div className="flex items-center gap-1 bg-[#F3F9F5] p-1 rounded-xl border border-[#E2ECE5] text-xs">
+                  {(['all', 'recommended', 'required', 'selected', 'custom'] as const).map((filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => setStatusFilter(filter)}
+                      className={cn(
+                        'px-2.5 py-1 rounded-lg font-bold text-[11px] capitalize transition-all',
+                        statusFilter === filter
+                          ? 'bg-[#3F7659] text-white shadow-xs'
+                          : 'text-[#5A7165] hover:text-[#173C2D]'
+                      )}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+                <span className="text-[10px] font-extrabold uppercase text-[#5A7165] mr-1">Category:</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('all')}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full text-[11px] font-semibold border shrink-0 transition-all',
+                    selectedCategory === 'all'
+                      ? 'bg-[#173C2D] text-white border-transparent'
+                      : 'bg-white text-[#5A7165] border-[#E2ECE5] hover:border-[#DDEEDF]'
+                  )}
+                >
+                  All ({allModules.length})
+                </button>
+                {availableCategories.map((cat) => {
+                  const count = allModules.filter((m) => m.category === cat).length;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat)}
+                      className={cn(
+                        'px-2.5 py-1 rounded-full text-[11px] font-semibold border shrink-0 transition-all',
+                        selectedCategory === cat
+                          ? 'bg-[#173C2D] text-white border-transparent'
+                          : 'bg-white text-[#5A7165] border-[#E2ECE5] hover:border-[#DDEEDF]'
+                      )}
+                    >
+                      {cat} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Module Cards Grid */}
+            {filteredModules.length === 0 ? (
+              <div className="p-8 text-center bg-[#F3F9F5] rounded-2xl border border-dashed border-[#E2ECE5] space-y-2">
+                <Boxes size={32} className="mx-auto text-[#5A7165]" />
+                <h4 className="text-sm font-bold text-[#173C2D]">No matching modules found</h4>
+                <p className="text-xs text-[#5A7165]">Try adjusting your search query or filter selection.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredModules.map((mod) => {
+                  const isEnabled = selectedModuleIds.includes(mod.id);
+                  const isRequired = mod.required;
+                  const isCustom = mod.custom;
+
+                  return (
+                    <div
+                      key={mod.id}
+                      className={cn(
+                        'p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 relative group',
+                        isEnabled
+                          ? 'border-[#3F7659] bg-[#F3F9F5] shadow-xs'
+                          : 'border-[#E2ECE5] bg-white hover:border-[#DDEEDF]'
+                      )}
+                    >
+                      {/* Top Bar: Icon, Name, Checkbox */}
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className={cn(
+                              'p-2 rounded-xl text-xs font-bold transition-all',
+                              isEnabled ? 'bg-[#3F7659] text-white' : 'bg-[#F3F9F5] text-[#173C2D]'
+                            )}>
+                              <Boxes size={16} />
+                            </div>
+                            <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase rounded bg-white border border-[#E2ECE5] text-[#3F7659]">
+                              {mod.category}
+                            </span>
+                          </div>
+
+                          {/* Checkbox / Lock */}
+                          <button
+                            type="button"
+                            onClick={() => toggleModuleSelection(mod)}
+                            disabled={isRequired}
+                            className={cn(
+                              'w-5 h-5 rounded-lg border flex items-center justify-center transition-all',
+                              isRequired
+                                ? 'bg-gray-100 border-gray-300 text-gray-500 cursor-not-allowed'
+                                : isEnabled
+                                ? 'bg-[#3F7659] border-[#3F7659] text-white shadow-xs'
+                                : 'border-[#E2ECE5] bg-white hover:border-[#3F7659]'
+                            )}
+                          >
+                            {isRequired ? <Lock size={11} /> : isEnabled && <Check size={12} />}
+                          </button>
+                        </div>
+
+                        {/* Title & Description */}
+                        <h4 className="text-xs font-extrabold text-[#173C2D] group-hover:text-[#3F7659] transition-colors">
+                          {mod.name}
+                        </h4>
+                        <p className="text-[11px] text-[#5A7165] mt-1 leading-relaxed line-clamp-2">
+                          {mod.description}
+                        </p>
+                      </div>
+
+                      {/* Card Footer: Badges & Configure Button */}
+                      <div className="pt-2 border-t border-[#E2ECE5]/60 flex items-center justify-between text-[10px]">
+                        <div className="flex items-center gap-1.5">
+                          {isRequired && (
+                            <span className="font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                              <Lock size={9} /> Required
+                            </span>
+                          )}
+                          {isCustom && (
+                            <span className="font-extrabold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">
+                              Custom Module
+                            </span>
+                          )}
+                          {isEnabled && !isRequired && (
+                            <span className="font-bold text-[#3F7659] bg-[#DDEEDF] px-1.5 py-0.5 rounded">
+                              ✓ Enabled
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Configure Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfiguringModule({ ...mod });
+                            setIsConfigModalOpen(true);
+                          }}
+                          className="px-2 py-1 hover:bg-white text-[#5A7165] hover:text-[#173C2D] font-bold rounded border border-transparent hover:border-[#E2ECE5] transition-all flex items-center gap-1"
+                        >
+                          <Settings size={11} /> Configure
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Bottom Module Summary Breakdown Bar */}
+            <div className="p-4 bg-[#F3F9F5] border border-[#DDEEDF] rounded-2xl space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-[#173C2D] flex items-center gap-2">
+                  <Layers size={15} className="text-[#3F7659]" /> Selected Modules Summary
+                </span>
+                <span className="font-extrabold text-[#3F7659]">
+                  {moduleSummary.required} Required • {moduleSummary.optional} Optional • {moduleSummary.custom} Custom (Total: {moduleSummary.total})
+                </span>
+              </div>
+
+              {/* Module Chips */}
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pt-1">
+                {moduleSummary.list.map((m) => (
+                  <span
+                    key={m.id}
+                    className="px-2 py-1 bg-white border border-[#E2ECE5] text-[#173C2D] text-[10px] font-semibold rounded-lg flex items-center gap-1 shadow-2xs"
                   >
-                    <span>{mod}</span>
-                    <span className={cn('w-4 h-4 rounded border flex items-center justify-center', checked ? 'bg-[#3F7659] text-white border-transparent' : 'border-[#E2ECE5]')}>
-                      {checked && <Check size={12} />}
-                    </span>
-                  </div>
-                );
-              })}
+                    <Check size={10} className="text-[#3F7659]" /> {m.name}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* STEP 5: Branding & Customization */}
+        {/* STEP 5: Branding */}
         {step === 5 && (
           <div className="space-y-6 animate-in fade-in duration-200">
             <div>
@@ -447,9 +864,8 @@ export default function CreateApplicationWizardPage() {
                       <span className="text-xs font-mono">{branding.primaryColor}</span>
                     </div>
                   </div>
-
                   <div>
-                    <label className="text-xs font-bold text-[#173C2D]">Pistachio Secondary</label>
+                    <label className="text-xs font-bold text-[#173C2D]">Secondary Color</label>
                     <div className="flex items-center gap-2 mt-1">
                       <input
                         type="color"
@@ -463,177 +879,332 @@ export default function CreateApplicationWizardPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-[#173C2D]">Button Corner Style</label>
-                  <div className="grid grid-cols-3 gap-2 mt-1">
-                    {(['sharp', 'rounded', 'pill'] as const).map((style) => (
-                      <button
-                        key={style}
-                        type="button"
-                        onClick={() => setBranding({ ...branding, buttonStyle: style })}
-                        className={cn(
-                          'py-1.5 text-xs font-medium capitalize rounded border',
-                          branding.buttonStyle === style ? 'bg-[#3F7659] text-white border-transparent' : 'bg-white text-[#173C2D] border-[#E2ECE5]'
-                        )}
-                      >
-                        {style}
-                      </button>
-                    ))}
-                  </div>
+                  <label className="text-xs font-bold text-[#173C2D]">Font Family</label>
+                  <select
+                    value={branding.font}
+                    onChange={(e) => setBranding({ ...branding, font: e.target.value })}
+                    className="w-full px-3.5 py-2 text-xs bg-[#F3F9F5] border border-[#E2ECE5] rounded-lg mt-1"
+                  >
+                    <option value="Inter">Inter (Modern Clean)</option>
+                    <option value="Roboto">Roboto (Enterprise)</option>
+                    <option value="Plus Jakarta Sans">Plus Jakarta Sans (SaaS)</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Live Preview Box */}
-              <div className="p-5 rounded-xl border border-[#E2ECE5] bg-[#F3F9F5] space-y-4">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#5A7165]">Real-time Component Preview</span>
-                <div className="p-4 bg-white rounded-xl shadow-xs space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold" style={{ color: branding.primaryColor }}>
-                      {branding.appName}
-                    </span>
-                    <span className="px-2 py-0.5 text-[10px] font-bold rounded" style={{ backgroundColor: branding.secondaryColor, color: '#173C2D' }}>
-                      Active
-                    </span>
+              {/* Branding Live Preview Box */}
+              <div className="p-6 bg-[#F3F9F5] rounded-2xl border border-[#E2ECE5] space-y-4 flex flex-col justify-between">
+                <span className="text-[10px] font-extrabold uppercase text-[#3F7659]">Visual Identity Preview</span>
+                <div
+                  className="p-5 rounded-xl bg-white border shadow-md space-y-3"
+                  style={{ borderRadius: branding.borderRadius }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                      style={{ backgroundColor: branding.primaryColor }}
+                    >
+                      {branding.appName.charAt(0)}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-[#173C2D]">{branding.appName}</h4>
+                      <span className="text-[10px] text-[#5A7165]">Enterprise Workspace</span>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-[#5A7165]">Welcome to the custom branded application header preview.</p>
+
                   <button
-                    className={cn('w-full py-2 text-xs font-bold text-white transition-all')}
-                    style={{
-                      backgroundColor: branding.primaryColor,
-                      borderRadius: branding.buttonStyle === 'pill' ? '9999px' : branding.buttonStyle === 'sharp' ? '0px' : '8px',
-                    }}
+                    type="button"
+                    style={{ backgroundColor: branding.primaryColor, borderRadius: branding.borderRadius }}
+                    className="w-full py-2 text-white font-bold text-xs shadow-xs"
                   >
                     Action Button
                   </button>
                 </div>
+                <span className="text-[10px] text-[#5A7165] text-center">Real-time styling engine applied to generated web app.</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* STEP 6: Final Review */}
+        {/* STEP 6: Review & Final Confirm */}
         {step === 6 && (
           <div className="space-y-6 animate-in fade-in duration-200">
             <div>
-              <h2 className="text-lg font-bold text-[#173C2D]">Step 6: Review Application Blueprint</h2>
-              <p className="text-xs text-[#5A7165]">Verify configuration before triggering the automated build engine.</p>
+              <h2 className="text-lg font-bold text-[#173C2D]">Step 6: Review Application Configuration</h2>
+              <p className="text-xs text-[#5A7165]">Verify build configuration before generating backend database & API schema.</p>
             </div>
 
-            <div className="p-5 bg-[#F3F9F5] border border-[#DDEEDF] rounded-xl space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+            <div className="p-5 bg-[#F3F9F5] rounded-2xl border border-[#E2ECE5] space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-[#5A7165]">Application Name</span>
-                  <div className="font-bold text-[#173C2D] text-sm">{name}</div>
+                  <span className="text-[#5A7165]">Application Name:</span>
+                  <p className="font-bold text-[#173C2D]">{name}</p>
                 </div>
                 <div>
-                  <span className="text-[#5A7165]">Operational Mode</span>
-                  <div className="font-bold text-[#173C2D] capitalize flex items-center gap-1">
-                    {mode === 'standalone' ? 'Standalone' : 'Integration Hub'}
-                  </div>
+                  <span className="text-[#5A7165]">Mode:</span>
+                  <p className="font-bold text-[#173C2D] uppercase">{mode}</p>
                 </div>
                 <div>
-                  <span className="text-[#5A7165]">Industry</span>
-                  <div className="font-bold text-[#173C2D]">{industry}</div>
+                  <span className="text-[#5A7165]">Template:</span>
+                  <p className="font-bold text-[#173C2D]">{templateDisplayName}</p>
                 </div>
-              </div>
-
-              <div className="pt-3 border-t border-[#E2ECE5]">
-                <span className="text-xs text-[#5A7165]">Selected Modules ({selectedModules.length})</span>
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {selectedModules.map((m) => (
-                    <span key={m} className="px-2.5 py-1 text-[11px] font-semibold bg-white text-[#173C2D] rounded border border-[#E2ECE5]">
-                      {m}
-                    </span>
-                  ))}
+                <div>
+                  <span className="text-[#5A7165]">Selected Modules:</span>
+                  <p className="font-bold text-[#3F7659]">{moduleSummary.total} Modules Enabled</p>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* STEP 7: Animated Creation & Success */}
+        {/* STEP 7: Progress Animation */}
         {step === 7 && (
-          <div className="py-8 space-y-6 text-center animate-in fade-in duration-300">
-            {creating ? (
-              <div className="space-y-6 max-w-md mx-auto">
-                <div className="w-16 h-16 rounded-full bg-[#DDEEDF] text-[#3F7659] flex items-center justify-center mx-auto animate-bounce">
-                  <Rocket size={32} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-extrabold text-[#173C2D]">Building Application...</h3>
-                  <p className="text-xs text-[#5A7165] mt-1">Generating platform workspace and binding services</p>
-                </div>
+          <div className="py-12 text-center space-y-6 animate-in fade-in duration-300">
+            <div className="relative w-16 h-16 mx-auto">
+              <div className="absolute inset-0 rounded-full border-4 border-[#E2ECE5]" />
+              <div className="absolute inset-0 rounded-full border-4 border-[#3F7659] border-t-transparent animate-spin" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-lg font-extrabold text-[#173C2D]">Generating Application...</h3>
+              <p className="text-xs font-semibold text-[#3F7659]">
+                {creationProgressSteps[creationStepIndex]}
+              </p>
+            </div>
+          </div>
+        )}
 
-                <div className="space-y-2 text-left bg-[#F3F9F5] p-4 rounded-xl border border-[#DDEEDF]">
-                  {creationProgressSteps.map((stepText, idx) => (
-                    <div key={stepText} className="flex items-center gap-3 text-xs font-semibold">
-                      {idx < creationStepIndex ? (
-                        <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                      ) : idx === creationStepIndex ? (
-                        <span className="w-4 h-4 rounded-full border-2 border-[#3F7659] border-t-transparent animate-spin shrink-0" />
-                      ) : (
-                        <span className="w-4 h-4 rounded-full bg-gray-200 shrink-0" />
-                      )}
-                      <span className={idx <= creationStepIndex ? 'text-[#173C2D]' : 'text-gray-400'}>
-                        {stepText}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6 max-w-md mx-auto">
-                <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-sm">
-                  <CheckCircle2 size={44} />
-                </div>
-                <div>
-                  <span className="px-3 py-1 text-xs font-bold bg-[#DDEEDF] text-[#173C2D] rounded-full">
-                    Build Complete
-                  </span>
-                  <h3 className="text-2xl font-black text-[#173C2D] mt-2">Application Created Successfully!</h3>
-                  <p className="text-xs text-[#5A7165] mt-1">
-                    Your app <strong className="text-[#173C2D]">{name}</strong> is live and ready in Development environment.
-                  </p>
-                </div>
+        {/* Navigation Buttons */}
+        {step < 7 && (
+          <div className="flex items-center justify-between pt-6 border-t border-[#E2ECE5] mt-8">
+            <button
+              type="button"
+              onClick={handlePrev}
+              disabled={step === 1}
+              className={cn(
+                'px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all',
+                step === 1
+                  ? 'opacity-40 cursor-not-allowed text-[#5A7165]'
+                  : 'bg-[#F3F9F5] text-[#173C2D] hover:bg-[#DDEEDF]'
+              )}
+            >
+              <ArrowLeft size={14} /> Previous
+            </button>
 
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
-                  <Link
-                    href={`/applications/${createdAppId || 'app-vms-01'}`}
-                    className="w-full sm:w-auto px-6 py-2.5 bg-[#3F7659] hover:bg-[#173C2D] text-white font-bold text-xs rounded-xl shadow-sm transition-all"
-                  >
-                    Open Application Details
-                  </Link>
-                  <Link
-                    href="/demos/vms"
-                    className="w-full sm:w-auto px-6 py-2.5 bg-[#F3F9F5] hover:bg-[#DDEEDF] text-[#173C2D] font-bold text-xs rounded-xl border border-[#DDEEDF] transition-all"
-                  >
-                    Preview App UI
-                  </Link>
-                </div>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={handleNext}
+              className="px-6 py-2.5 bg-[#3F7659] hover:bg-[#173C2D] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2"
+            >
+              {step === 6 ? 'Create Application' : 'Continue'} <ArrowRight size={14} />
+            </button>
           </div>
         )}
       </div>
 
-      {/* Navigation Wizard Buttons */}
-      {step < 7 && (
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={handlePrev}
-            disabled={step === 1}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-[#173C2D] bg-white border border-[#E2ECE5] rounded-lg disabled:opacity-40"
-          >
-            <ArrowLeft size={14} /> Back
-          </button>
+      {/* MODAL 1: Create Custom Module */}
+      {isCustomModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 border border-[#E2ECE5] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#E2ECE5] pb-3">
+              <h3 className="text-base font-extrabold text-[#173C2D] flex items-center gap-2">
+                <Plus size={18} className="text-[#3F7659]" /> Create Custom Module
+              </h3>
+              <button
+                onClick={() => setIsCustomModalOpen(false)}
+                className="p-1 hover:bg-[#F3F9F5] text-[#5A7165] rounded-full"
+              >
+                <X size={16} />
+              </button>
+            </div>
 
-          <button
-            type="button"
-            onClick={handleNext}
-            className="flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-[#3F7659] hover:bg-[#173C2D] rounded-lg shadow-sm transition-all"
-          >
-            {step === 6 ? 'Create Application' : 'Continue'} <ArrowRight size={14} />
-          </button>
+            <form onSubmit={handleCreateCustomModuleSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-[#173C2D]">Module Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newCustomModule.name}
+                  onChange={(e) => setNewCustomModule({ ...newCustomModule, name: e.target.value })}
+                  placeholder="e.g. Equipment Management"
+                  className="w-full px-3.5 py-2.5 bg-[#F3F9F5] border border-[#E2ECE5] rounded-xl text-[#173C2D] mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-[#173C2D]">Description</label>
+                <textarea
+                  rows={2}
+                  value={newCustomModule.description}
+                  onChange={(e) => setNewCustomModule({ ...newCustomModule, description: e.target.value })}
+                  placeholder="Describe module capabilities..."
+                  className="w-full px-3.5 py-2 text-xs bg-[#F3F9F5] border border-[#E2ECE5] rounded-xl text-[#173C2D] mt-1"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-[#173C2D]">Category</label>
+                  <input
+                    type="text"
+                    value={newCustomModule.category}
+                    onChange={(e) => setNewCustomModule({ ...newCustomModule, category: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#F3F9F5] border border-[#E2ECE5] rounded-xl text-[#173C2D] mt-1"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-[#173C2D]">Module Type</label>
+                  <select
+                    value={newCustomModule.type}
+                    onChange={(e) => setNewCustomModule({ ...newCustomModule, type: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#F3F9F5] border border-[#E2ECE5] rounded-xl text-[#173C2D] mt-1"
+                  >
+                    <option value="Data Management">Data Management</option>
+                    <option value="Workflow">Workflow</option>
+                    <option value="Communication">Communication</option>
+                    <option value="Reports">Reports</option>
+                    <option value="Content">Content</option>
+                    <option value="Custom">Custom</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E2ECE5]">
+                <button
+                  type="button"
+                  onClick={() => setIsCustomModalOpen(false)}
+                  className="px-4 py-2 bg-[#F3F9F5] text-[#5A7165] font-bold rounded-xl hover:bg-[#DDEEDF]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#3F7659] text-white font-bold rounded-xl hover:bg-[#173C2D] shadow-xs"
+                >
+                  Create Module
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: Configure Module */}
+      {isConfigModalOpen && configuringModule && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 border border-[#E2ECE5] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#E2ECE5] pb-3">
+              <h3 className="text-base font-extrabold text-[#173C2D] flex items-center gap-2">
+                <Settings size={18} className="text-[#3F7659]" /> Configure {configuringModule.name}
+              </h3>
+              <button
+                onClick={() => {
+                  setIsConfigModalOpen(false);
+                  setConfiguringModule(null);
+                }}
+                className="p-1 hover:bg-[#F3F9F5] text-[#5A7165] rounded-full"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveModuleConfig} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-[#173C2D]">Display Name</label>
+                <input
+                  type="text"
+                  value={configuringModule.name}
+                  onChange={(e) => setConfiguringModule({ ...configuringModule, name: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-[#F3F9F5] border border-[#E2ECE5] rounded-xl mt-1 text-[#173C2D]"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-[#173C2D]">Visibility Options</label>
+                <div className="grid grid-cols-3 gap-2 mt-1.5">
+                  <label className="flex items-center gap-1.5 p-2 bg-[#F3F9F5] rounded-lg cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={configuringModule.visibility?.dashboard !== false}
+                      onChange={(e) =>
+                        setConfiguringModule({
+                          ...configuringModule,
+                          visibility: { ...configuringModule.visibility, dashboard: e.target.checked },
+                        })
+                      }
+                    />
+                    <span>Dashboard</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 p-2 bg-[#F3F9F5] rounded-lg cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={configuringModule.visibility?.sidebar !== false}
+                      onChange={(e) =>
+                        setConfiguringModule({
+                          ...configuringModule,
+                          visibility: { ...configuringModule.visibility, sidebar: e.target.checked },
+                        })
+                      }
+                    />
+                    <span>Sidebar</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 p-2 bg-[#F3F9F5] rounded-lg cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={configuringModule.visibility?.reports === true}
+                      onChange={(e) =>
+                        setConfiguringModule({
+                          ...configuringModule,
+                          visibility: { ...configuringModule.visibility, reports: e.target.checked },
+                        })
+                      }
+                    />
+                    <span>Reports</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-[#173C2D]">Role Permissions</label>
+                <div className="grid grid-cols-4 gap-2 mt-1.5">
+                  {(['view', 'create', 'edit', 'delete'] as const).map((perm) => (
+                    <label key={perm} className="flex items-center gap-1 p-2 bg-[#F3F9F5] rounded-lg cursor-pointer capitalize">
+                      <input
+                        type="checkbox"
+                        checked={configuringModule.permissions?.[perm] !== false}
+                        onChange={(e) =>
+                          setConfiguringModule({
+                            ...configuringModule,
+                            permissions: { ...configuringModule.permissions, [perm]: e.target.checked },
+                          })
+                        }
+                      />
+                      <span>{perm}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E2ECE5]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsConfigModalOpen(false);
+                    setConfiguringModule(null);
+                  }}
+                  className="px-4 py-2 bg-[#F3F9F5] text-[#5A7165] font-bold rounded-xl hover:bg-[#DDEEDF]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#3F7659] text-white font-bold rounded-xl hover:bg-[#173C2D] shadow-xs"
+                >
+                  Save Configuration
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

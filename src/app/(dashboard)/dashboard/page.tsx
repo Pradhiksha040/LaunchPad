@@ -324,14 +324,17 @@ export default function DashboardPage() {
 
                 {/* Modules Tags */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  {app.modules.slice(0, 3).map((m) => (
-                    <span
-                      key={m}
-                      className="px-2 py-0.5 text-[10px] font-medium bg-[#F3F9F5] text-[#173C2D] rounded border border-[#E2ECE5]"
-                    >
-                      {m}
-                    </span>
-                  ))}
+                  {app.modules.slice(0, 3).map((m, idx) => {
+                    const modName = typeof m === 'string' ? m : m.name;
+                    return (
+                      <span
+                        key={typeof m === 'string' ? `${m}-${idx}` : m.id || `${m.name}-${idx}`}
+                        className="px-2 py-0.5 text-[10px] font-medium bg-[#F3F9F5] text-[#173C2D] rounded border border-[#E2ECE5]"
+                      >
+                        {modName}
+                      </span>
+                    );
+                  })}
                   {app.modules.length > 3 && (
                     <span className="px-2 py-0.5 text-[10px] font-medium bg-[#DDEEDF] text-[#173C2D] rounded">
                       +{app.modules.length - 3} more

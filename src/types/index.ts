@@ -14,8 +14,36 @@ export interface BrandingConfig {
   borderRadius: string;
 }
 
+export interface AppModuleItem {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  icon?: string;
+  required?: boolean;
+  recommended?: boolean;
+  enabledByDefault?: boolean;
+  dependencies?: string[];
+  availableFor?: string[];
+  order?: number;
+  configurable?: boolean;
+  visibility?: {
+    dashboard?: boolean;
+    sidebar?: boolean;
+    reports?: boolean;
+  };
+  permissions?: {
+    view?: boolean;
+    create?: boolean;
+    edit?: boolean;
+    delete?: boolean;
+  };
+  custom?: boolean;
+}
+
 export interface Application {
   id: string;
+  slug?: string;
   name: string;
   description: string;
   industry: string;
@@ -24,7 +52,7 @@ export interface Application {
   status: AppStatus;
   templateId?: string;
   templateName?: string;
-  modules: string[];
+  modules: (string | AppModuleItem)[];
   usersCount: number;
   environment: AppEnvironment;
   branding: BrandingConfig;

@@ -5,23 +5,34 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Lock, Mail, ArrowRight, Sparkles, CheckCircle2, ShieldCheck } from 'lucide-react';
 
+import { authService } from '@/services/authService';
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('alexander@launchpad-os.com');
-  const [password, setPassword] = useState('••••••••••••');
+  const [password, setPassword] = useState('DemoPass123!');
   const [loggingIn, setLoggingIn] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoggingIn(true);
+    setErrorMsg(null);
 
-    await new Promise((r) => setTimeout(r, 600));
-    router.push('/dashboard');
+    try {
+      await authService.login(email, password);
+      router.push('/dashboard');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Login failed. Please verify credentials.');
+    } finally {
+      setLoggingIn(false);
+    }
   };
 
   const fillDemoAccount = (demoEmail: string) => {
     setEmail(demoEmail);
-    setPassword('demoPass123!');
+    setPassword('DemoPass123!');
+    setErrorMsg(null);
   };
 
   return (
@@ -68,6 +79,11 @@ export default function LoginPage() {
 
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-4 text-xs">
+          {errorMsg && (
+            <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs font-medium">
+              {errorMsg}
+            </div>
+          )}
           <div>
             <label className="font-bold text-[#173C2D]">Work Email Address</label>
             <div className="relative mt-1">
