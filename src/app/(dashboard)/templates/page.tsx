@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -22,18 +22,31 @@ import {
   Layers,
   ShieldCheck
 } from 'lucide-react';
+import { templateService } from '@/services/templateService';
+import { Template } from '@/types';
 import { MOCK_TEMPLATES } from '@/mock/data';
 import { cn } from '@/lib/utils';
 
 export default function TemplateMarketplacePage() {
   const router = useRouter();
+  const [templates, setTemplates] = useState<any[]>(MOCK_TEMPLATES);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [previewTemplate, setPreviewTemplate] = useState<typeof MOCK_TEMPLATES[0] | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<any | null>(null);
+
+  useEffect(() => {
+    async function loadTemplates() {
+      const data = await templateService.getTemplates();
+      if (Array.isArray(data) && data.length > 0) {
+        setTemplates(data);
+      }
+    }
+    loadTemplates();
+  }, []);
 
   const categories = ['All', 'Healthcare', 'Education', 'Business', 'Commerce', 'Events', 'Services', 'Marketplace'];
 
-  const filteredTemplates = MOCK_TEMPLATES.filter((tpl) => {
+  const filteredTemplates = templates.filter((tpl) => {
     const matchesCat = selectedCategory === 'All' || tpl.category === selectedCategory;
     const matchesSearch =
       tpl.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -139,14 +152,17 @@ export default function TemplateMarketplacePage() {
 
                 {/* Included Modules Badges */}
                 <div className="flex flex-wrap gap-1.5 pt-2">
-                  {tpl.modules.slice(0, 4).map((mod) => (
-                    <span
-                      key={mod}
-                      className="px-2 py-0.5 text-[10px] font-medium bg-[#F3F9F5] text-[#173C2D] rounded border border-[#E2ECE5]"
-                    >
-                      {mod}
-                    </span>
-                  ))}
+                  {tpl.modules.slice(0, 4).map((mod: any, idx: number) => {
+                    const modName = typeof mod === 'string' ? mod : mod.name || mod.id;
+                    return (
+                      <span
+                        key={typeof mod === 'string' ? `${mod}-${idx}` : mod.id || idx}
+                        className="px-2 py-0.5 text-[10px] font-medium bg-[#F3F9F5] text-[#173C2D] rounded border border-[#E2ECE5]"
+                      >
+                        {modName}
+                      </span>
+                    );
+                  })}
                   {tpl.modules.length > 4 && (
                     <span className="px-2 py-0.5 text-[10px] font-medium bg-[#DDEEDF] text-[#173C2D] rounded">
                       +{tpl.modules.length - 4}
@@ -200,11 +216,14 @@ export default function TemplateMarketplacePage() {
             <div className="space-y-2">
               <span className="text-xs font-bold text-[#173C2D]">Bundled Core Modules:</span>
               <div className="flex flex-wrap gap-1.5">
-                {previewTemplate.modules.map((m) => (
-                  <span key={m} className="px-2.5 py-1 text-xs font-semibold bg-[#DDEEDF] text-[#173C2D] rounded-md">
-                    ✓ {m}
-                  </span>
-                ))}
+                {previewTemplate.modules.map((m: any, idx: number) => {
+                  const modName = typeof m === 'string' ? m : m.name || m.id;
+                  return (
+                    <span key={typeof m === 'string' ? `${m}-${idx}` : m.id || idx} className="px-2.5 py-1 text-xs font-semibold bg-[#DDEEDF] text-[#173C2D] rounded-md">
+                      ✓ {modName}
+                    </span>
+                  );
+                })}
               </div>
             </div>
 

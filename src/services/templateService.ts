@@ -6,10 +6,11 @@ export const templateService = {
   async getTemplates(): Promise<Template[]> {
     try {
       const templates = await ApiClient.get<Template[]>('templates');
-      if (Array.isArray(templates) && templates.length > 0) {
+      if (Array.isArray(templates)) {
         return templates;
       }
     } catch (e: any) {
+      if (e.statusCode) throw e;
       console.warn('API getTemplates failed, using fallback:', e.message);
     }
     return [...MOCK_TEMPLATES];
@@ -22,6 +23,7 @@ export const templateService = {
         return template;
       }
     } catch (e: any) {
+      if (e.statusCode) throw e;
       console.warn(`API getTemplateById(${id}) failed, using fallback:`, e.message);
     }
     return MOCK_TEMPLATES.find((t) => t.id === id);
@@ -29,13 +31,17 @@ export const templateService = {
 
   async getTemplateModules(id: string): Promise<any[]> {
     try {
-      const res = await ApiClient.get<{ modules: any[] }>(`templates/${id}/modules`);
-      if (res && Array.isArray(res.modules)) {
+      const res = await ApiClient.get<any>(`templates/${id}/modules`);
+      if (Array.isArray(res)) {
+        return res;
+      } else if (res && Array.isArray(res.modules)) {
         return res.modules;
       }
     } catch (e: any) {
+      if (e.statusCode) throw e;
       console.warn(`API getTemplateModules(${id}) failed, using fallback:`, e.message);
     }
     return [];
   },
 };
+
