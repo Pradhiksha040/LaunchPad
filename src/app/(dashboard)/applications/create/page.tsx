@@ -71,6 +71,7 @@ import {
   CheckSquare
 } from 'lucide-react';
 import { applicationService } from '@/services/applicationService';
+import { templateService } from '@/services/templateService';
 import { MOCK_TEMPLATES } from '@/mock/data';
 import { AppMode, BrandingConfig, AppModuleItem } from '@/types';
 import { getModulesForTemplate, getTemplateDisplayName } from '@/data/moduleCatalog';
@@ -133,10 +134,30 @@ export default function CreateApplicationWizardPage() {
   const [creating, setCreating] = useState(false);
   const [creationStepIndex, setCreationStepIndex] = useState(0);
 
+  // Dynamic API Template Catalog State
+  const [apiModules, setApiModules] = useState<AppModuleItem[]>([]);
+
+  useEffect(() => {
+    async function fetchModules() {
+      if (selectedTemplateId) {
+        try {
+          const fetched = await templateService.getTemplateModules(selectedTemplateId);
+          if (Array.isArray(fetched) && fetched.length > 0) {
+            setApiModules(fetched);
+            return;
+          }
+        } catch {}
+      }
+      setApiModules([]);
+    }
+    fetchModules();
+  }, [selectedTemplateId]);
+
   // Get catalog modules for currently selected template
   const templateCatalog = useMemo(() => {
+    if (apiModules.length > 0) return apiModules;
     return getModulesForTemplate(selectedTemplateId || appType || name);
-  }, [selectedTemplateId, appType, name]);
+  }, [apiModules, selectedTemplateId, appType, name]);
 
   const templateDisplayName = useMemo(() => {
     return getTemplateDisplayName(selectedTemplateId || appType || name);
@@ -198,49 +219,55 @@ export default function CreateApplicationWizardPage() {
       setSelectedModuleIds((prev) => prev.filter((id) => id !== moduleItem.id));
     } else {
       let newSelected = [...selectedModuleIds, moduleItem.id];
-      let addedDeps: string[] = [];
-
       if (moduleItem.dependencies && moduleItem.dependencies.length > 0) {
-        moduleItem.dependencies.forEach((depId) => {
-          if (!newSelected.includes(depId)) {
-            newSelected.push(depId);
-            const depMod = allModules.find((m) => m.id === depId);
-            if (depMod) addedDeps.push(depMod.name);
-          }
-        });
+        const missingDeps = moduleItem.dependencies.filter((depId) => !newSelected.includes(depId));
+        if (missingDeps.length > 0) {
+          newSelected = [...newSelected, ...missingDeps];
+          setDependencyNotice(`Auto-enabled dependent module(s): ${missingDeps.join(', ')}`);
+          setTimeout(() => setDependencyNotice(null), 4000);
+        }
       }
-
       setSelectedModuleIds(newSelected);
-
-      if (addedDeps.length > 0) {
-        setDependencyNotice(
-          `${addedDeps.join(', ')} was automatically enabled because ${moduleItem.name} depends on it.`
-        );
-        setTimeout(() => setDependencyNotice(null), 4500);
-      }
     }
   };
 
-  // Create custom module handler
+  const openConfigModal = (moduleItem: AppModuleItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const existingConfig = configuredModuleMap[moduleItem.id] || moduleItem;
+    setConfiguringModule({ ...existingConfig });
+    setIsConfigModalOpen(true);
+  };
+
+  const handleSaveModuleConfig = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!configuringModule) return;
+    setConfiguredModuleMap((prev) => ({
+      ...prev,
+      [configuringModule.id]: configuringModule,
+    }));
+    setIsConfigModalOpen(false);
+    setConfiguringModule(null);
+  };
+
   const handleCreateCustomModuleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCustomModule.name.trim()) return;
+    handleAddCustomModule();
+  };
 
-    const customId = `custom-${Date.now().toString(36)}`;
-    const createdItem: AppModuleItem = {
+  const handleAddCustomModule = () => {
+    if (!newCustomModule.name.trim()) return;
+    const customId = `custom-${Date.now()}`;
+    const created: AppModuleItem = {
       id: customId,
-      name: newCustomModule.name.trim(),
-      description: newCustomModule.description.trim() || 'Custom user-defined application capability.',
+      name: newCustomModule.name,
+      description: newCustomModule.description || 'User-created custom application module.',
       category: newCustomModule.category || 'Custom',
       icon: newCustomModule.icon || 'Package',
-      recommended: true,
-      enabledByDefault: true,
       custom: true,
-      visibility: { dashboard: true, sidebar: true, reports: false },
-      permissions: { view: true, create: true, edit: true, delete: false },
+      enabledByDefault: true,
+      order: 99,
     };
-
-    setCustomModules((prev) => [...prev, createdItem]);
+    setCustomModules((prev) => [...prev, created]);
     setSelectedModuleIds((prev) => [...prev, customId]);
     setNewCustomModule({
       name: '',
@@ -252,21 +279,9 @@ export default function CreateApplicationWizardPage() {
     setIsCustomModalOpen(false);
   };
 
-  // Configure module submit handler
-  const handleSaveModuleConfig = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (configuringModule) {
-      setConfiguredModuleMap((prev) => ({
-        ...prev,
-        [configuringModule.id]: configuringModule,
-      }));
-      setIsConfigModalOpen(false);
-      setConfiguringModule(null);
-    }
-  };
-
   // Progress steps for wizard
   const creationProgressSteps = [
+    'Validating architecture topology & parameters...',
     'Creating application structure...',
     'Injecting selected dynamic modules & schemas...',
     'Applying custom visual branding identity...',
@@ -294,9 +309,25 @@ export default function CreateApplicationWizardPage() {
       await new Promise((r) => setTimeout(r, 600));
     }
 
-    const selectedModuleNames = allModules
+    const selectedModulesPayload = allModules
       .filter((m) => selectedModuleIds.includes(m.id))
-      .map((m) => m.name);
+      .map((m) => {
+        const configured = configuredModuleMap[m.id];
+        return {
+          id: m.id,
+          name: m.name,
+          category: m.category,
+          description: m.description,
+          icon: m.icon,
+          required: m.required,
+          custom: m.custom,
+          order: m.order,
+          dependencies: m.dependencies,
+          visibility: configured?.visibility || m.visibility,
+          permissions: configured?.permissions || m.permissions,
+          configuration: configured?.configuration || m.configuration,
+        };
+      });
 
     const created = await applicationService.createApplication({
       name,
@@ -306,7 +337,7 @@ export default function CreateApplicationWizardPage() {
       mode,
       templateId: selectedTemplateId,
       templateName: MOCK_TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || templateDisplayName,
-      modules: selectedModuleNames,
+      modules: selectedModulesPayload,
       branding,
       targetBackend: mode === 'integration_hub' ? {
         systemName: targetSystemName,

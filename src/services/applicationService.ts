@@ -8,11 +8,12 @@ export const applicationService = {
   async getApplications(): Promise<Application[]> {
     try {
       const apps = await ApiClient.get<Application[]>('applications');
-      if (Array.isArray(apps) && apps.length > 0) {
+      if (Array.isArray(apps)) {
         return apps;
       }
     } catch (e: any) {
-      console.warn('API getApplications offline or empty, fallback to local store:', e.message);
+      if (e.statusCode) throw e;
+      console.warn('API getApplications offline, fallback to local store:', e.message);
     }
     return [...localApplicationsStore];
   },
@@ -24,6 +25,7 @@ export const applicationService = {
         return app;
       }
     } catch (e: any) {
+      if (e.statusCode) throw e;
       console.warn(`API getApplicationById(${id}) offline, fallback to local store:`, e.message);
     }
     return localApplicationsStore.find((app) => app.id === id || app.slug === id);
@@ -37,7 +39,7 @@ export const applicationService = {
     mode: AppMode;
     templateId?: string;
     templateName?: string;
-    modules: string[];
+    modules: any[];
     branding: BrandingConfig;
     targetBackend?: {
       systemName: string;
@@ -53,7 +55,8 @@ export const applicationService = {
         return createdApp;
       }
     } catch (e: any) {
-      console.warn('API createApplication failed, falling back to client-side store:', e.message);
+      if (e.statusCode) throw e;
+      console.warn('API createApplication failed offline, falling back to client-side store:', e.message);
     }
 
     const fallbackApp: Application = {
@@ -86,6 +89,7 @@ export const applicationService = {
         return updated;
       }
     } catch (e: any) {
+      if (e.statusCode) throw e;
       console.warn(`API updateBranding(${id}) failed, updating local store:`, e.message);
     }
 
@@ -102,6 +106,7 @@ export const applicationService = {
     try {
       await ApiClient.delete(`applications/${id}`);
     } catch (e: any) {
+      if (e.statusCode) throw e;
       console.warn(`API deleteApplication(${id}) failed, updating local store:`, e.message);
     }
     localApplicationsStore = localApplicationsStore.filter((a) => a.id !== id);
@@ -121,6 +126,7 @@ export const applicationService = {
         return updated;
       }
     } catch (e: any) {
+      if (e.statusCode) throw e;
       console.warn(`API deployApplication(${id}) failed, updating local store:`, e.message);
     }
 
@@ -136,40 +142,29 @@ export const applicationService = {
 
   async getApplicationModules(id: string): Promise<any[]> {
     try {
-      const res = await ApiClient.get<{ modules: any[] }>(`applications/${id}/modules`);
-      if (res && Array.isArray(res.modules)) {
+      const res = await ApiClient.get<any>(`applications/${id}/modules`);
+      if (Array.isArray(res)) {
+        return res;
+      } else if (res && Array.isArray(res.modules)) {
         return res.modules;
       }
     } catch (e: any) {
+      if (e.statusCode) throw e;
       console.warn(`API getApplicationModules(${id}) failed:`, e.message);
     }
     return [];
   },
 
   async addApplicationModule(id: string, moduleData: any): Promise<any> {
-    try {
-      return await ApiClient.post(`applications/${id}/modules`, moduleData);
-    } catch (e: any) {
-      console.warn(`API addApplicationModule(${id}) failed:`, e.message);
-      throw e;
-    }
+    return ApiClient.post(`applications/${id}/modules`, moduleData);
   },
 
   async updateApplicationModule(id: string, moduleId: string, moduleData: any): Promise<any> {
-    try {
-      return await ApiClient.patch(`applications/${id}/modules/${moduleId}`, moduleData);
-    } catch (e: any) {
-      console.warn(`API updateApplicationModule(${id}, ${moduleId}) failed:`, e.message);
-      throw e;
-    }
+    return ApiClient.patch(`applications/${id}/modules/${moduleId}`, moduleData);
   },
 
   async deleteApplicationModule(id: string, moduleId: string): Promise<any> {
-    try {
-      return await ApiClient.delete(`applications/${id}/modules/${moduleId}`);
-    } catch (e: any) {
-      console.warn(`API deleteApplicationModule(${id}, ${moduleId}) failed:`, e.message);
-      throw e;
-    }
+    return ApiClient.delete(`applications/${id}/modules/${moduleId}`);
   },
 };
+

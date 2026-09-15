@@ -34,24 +34,56 @@ export default function ApplicationDetailPage() {
   const appId = (params?.id as string) || 'app-vms-01';
 
   const [app, setApp] = useState<Application | null>(null);
+  const [appModules, setAppModules] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'modules' | 'branding' | 'integrations' | 'deployment'>('overview');
   const [deploying, setDeploying] = useState(false);
   const [deploySuccess, setDeploySuccess] = useState(false);
   const [moduleSearch, setModuleSearch] = useState('');
 
-  useEffect(() => {
-    async function loadApp() {
-      const data = await applicationService.getApplicationById(appId);
-      if (data) setApp(data);
+  const loadAppData = async () => {
+    const data = await applicationService.getApplicationById(appId);
+    if (data) {
+      setApp(data);
+      const mods = await applicationService.getApplicationModules(data.id);
+      if (Array.isArray(mods) && mods.length > 0) {
+        setAppModules(mods);
+      } else if (Array.isArray(data.modules)) {
+        setAppModules(data.modules);
+      }
     }
-    loadApp();
+  };
+
+  useEffect(() => {
+    loadAppData();
   }, [appId]);
 
   // Load catalog for this specific app's template
   const templateCatalog = useMemo(() => {
     if (!app) return [];
-    return getModulesForTemplate(app.templateId || app.type || app.name);
-  }, [app]);
+    const baseCatalog = getModulesForTemplate(app.templateId || app.type || app.name);
+    if (appModules.length === 0) return baseCatalog;
+
+    // Merge appModules from API with base catalog
+    const merged = [...baseCatalog];
+    appModules.forEach((mod) => {
+      const existingIdx = merged.findIndex((m) => m.id === mod.id || m.name === mod.name || m.id === mod.moduleId);
+      if (existingIdx !== -1) {
+        merged[existingIdx] = { ...merged[existingIdx], ...mod, isEnabled: mod.isEnabled };
+      } else {
+        merged.push({
+          id: mod.id || mod.moduleId,
+          name: mod.name,
+          category: mod.category || 'Custom',
+          description: mod.description || 'Application module',
+          icon: mod.icon || 'Package',
+          required: !!mod.isRequired,
+          custom: !!mod.isCustom,
+          isEnabled: mod.isEnabled !== false,
+        });
+      }
+    });
+    return merged;
+  }, [app, appModules]);
 
   const handleDeploy = async (env: AppEnvironment) => {
     if (!app) return;
@@ -67,18 +99,40 @@ export default function ApplicationDetailPage() {
     setTimeout(() => setDeploySuccess(false), 3000);
   };
 
-  const toggleAppModule = (moduleName: string) => {
+  const toggleAppModule = async (modItem: any) => {
     if (!app) return;
-    const currentModules = app.modules.map((m) => (typeof m === 'string' ? m : m.name));
-    let updated: string[];
+    const modName = typeof modItem === 'string' ? modItem : modItem.name;
+    const existingRecord = appModules.find((m) => m.name === modName || m.id === modItem.id || m.moduleId === modItem.id);
 
-    if (currentModules.includes(moduleName)) {
-      updated = currentModules.filter((m) => m !== moduleName);
+    const currentlyEnabled = existingRecord ? existingRecord.isEnabled !== false : app.modules.some((m) => (typeof m === 'string' ? m : m.name) === modName);
+    const nextState = !currentlyEnabled;
+
+    if (existingRecord) {
+      try {
+        await applicationService.updateApplicationModule(app.id, existingRecord.id || existingRecord.moduleId, {
+          isEnabled: nextState,
+        });
+      } catch (e: any) {
+        console.warn('API updateApplicationModule failed:', e.message);
+      }
     } else {
-      updated = [...currentModules, moduleName];
+      try {
+        await applicationService.addApplicationModule(app.id, {
+          moduleId: modItem.id || `mod-${Date.now()}`,
+          name: modName,
+          category: modItem.category || 'General',
+          description: modItem.description || null,
+          icon: modItem.icon || 'Boxes',
+          isEnabled: nextState,
+          isRequired: !!modItem.required,
+          isCustom: !!modItem.custom,
+        });
+      } catch (e: any) {
+        console.warn('API addApplicationModule failed:', e.message);
+      }
     }
 
-    setApp({ ...app, modules: updated });
+    await loadAppData();
   };
 
   if (!app) {
@@ -90,7 +144,9 @@ export default function ApplicationDetailPage() {
     );
   }
 
-  const enabledModuleNames = app.modules.map((m) => (typeof m === 'string' ? m : m.name));
+  const activeModuleCount = appModules.length > 0
+    ? appModules.filter((m) => m.isEnabled !== false).length
+    : app.modules.length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -129,7 +185,7 @@ export default function ApplicationDetailPage() {
         <div className="flex items-center gap-2 border-b border-[#E2ECE5] pt-2 overflow-x-auto">
           {[
             { id: 'overview', label: 'Overview & Health' },
-            { id: 'modules', label: `Enabled Modules (${app.modules.length})` },
+            { id: 'modules', label: `Enabled Modules (${activeModuleCount})` },
             { id: 'branding', label: 'Theme Branding' },
             { id: 'integrations', label: 'Target Connector' },
             { id: 'deployment', label: 'Deployment Pipeline' },
@@ -233,11 +289,12 @@ export default function ApplicationDetailPage() {
                     m.category.toLowerCase().includes(moduleSearch.toLowerCase())
               )
               .map((modItem) => {
-                const isEnabled = enabledModuleNames.includes(modItem.name);
+                const apiRec = appModules.find((m) => m.name === modItem.name || m.id === modItem.id || m.moduleId === modItem.id);
+                const isEnabled = apiRec ? apiRec.isEnabled !== false : modItem.isEnabled !== false;
                 return (
                   <div
                     key={modItem.id}
-                    onClick={() => toggleAppModule(modItem.name)}
+                    onClick={() => toggleAppModule(modItem)}
                     className={cn(
                       'p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between space-y-3 relative',
                       isEnabled
@@ -271,7 +328,7 @@ export default function ApplicationDetailPage() {
                       <span className={cn('font-bold', isEnabled ? 'text-[#3F7659]' : 'text-[#5A7165]')}>
                         {isEnabled ? '✓ Module Enabled' : 'Click to Enable'}
                       </span>
-                      {modItem.required && (
+                      {(modItem.required || modItem.isRequired) && (
                         <span className="font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                           <Lock size={9} /> Core Required
                         </span>
