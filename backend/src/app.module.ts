@@ -10,6 +10,8 @@ import { TemplatesModule } from './templates/templates.module';
 import { SettingsModule } from './settings/settings.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 
+import { AppController } from './app.controller';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -23,5 +25,6 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
     SettingsModule,
     AuditLogsModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}
