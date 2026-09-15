@@ -41,39 +41,10 @@ export const authService = {
 
       return response;
     } catch (error: any) {
-      if (error.statusCode) {
+      if (error.statusCode !== undefined) {
         throw error;
       }
-      console.warn('API login failed due to network error, fallback for preview:', error.message);
-
-      const mockUser: User = {
-        id: 'user-demo-01',
-        name: email.includes('alexander')
-          ? 'Alexander Vance'
-          : email.includes('elena')
-          ? 'Elena Rostova'
-          : email.includes('marcus')
-          ? 'Marcus Chen'
-          : 'Enterprise User',
-        email,
-        organization: 'TechSolutions Inc.',
-        role: email.includes('alexander')
-          ? 'SUPER_ADMIN'
-          : email.includes('elena')
-          ? 'ORG_ADMIN'
-          : email.includes('marcus')
-          ? 'DEVELOPER'
-          : 'USER',
-        status: 'active',
-        lastLogin: new Date().toISOString(),
-      };
-
-      return {
-        user: mockUser,
-        accessToken: 'mock-token-fallback',
-        refreshToken: 'mock-refresh-fallback',
-        expiresIn: 86400,
-      };
+      throw error;
     }
   },
 

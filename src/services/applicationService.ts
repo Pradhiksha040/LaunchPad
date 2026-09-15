@@ -12,7 +12,7 @@ export const applicationService = {
         return apps;
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn('API getApplications offline, fallback to local store:', e.message);
     }
     return [...localApplicationsStore];
@@ -25,7 +25,7 @@ export const applicationService = {
         return app;
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn(`API getApplicationById(${id}) offline, fallback to local store:`, e.message);
     }
     return localApplicationsStore.find((app) => app.id === id || app.slug === id);
@@ -55,7 +55,7 @@ export const applicationService = {
         return createdApp;
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn('API createApplication failed offline, falling back to client-side store:', e.message);
     }
 
@@ -89,7 +89,7 @@ export const applicationService = {
         return updated;
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn(`API updateBranding(${id}) failed, updating local store:`, e.message);
     }
 
@@ -106,7 +106,7 @@ export const applicationService = {
     try {
       await ApiClient.delete(`applications/${id}`);
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn(`API deleteApplication(${id}) failed, updating local store:`, e.message);
     }
     localApplicationsStore = localApplicationsStore.filter((a) => a.id !== id);
@@ -126,7 +126,7 @@ export const applicationService = {
         return updated;
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn(`API deployApplication(${id}) failed, updating local store:`, e.message);
     }
 
@@ -149,7 +149,7 @@ export const applicationService = {
         return res.modules;
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn(`API getApplicationModules(${id}) failed:`, e.message);
     }
     return [];

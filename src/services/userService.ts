@@ -23,7 +23,7 @@ export const userService = {
         }));
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn('API getUsers failed, using local store:', e.message);
     }
     return [...usersStore];
@@ -51,7 +51,7 @@ export const userService = {
         return formattedUser;
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn('API createUser failed, using local store:', e.message);
     }
 
@@ -75,7 +75,7 @@ export const userService = {
         return roles;
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn('API getRoles failed, using local store:', e.message);
     }
     return [...rolesStore];
@@ -100,7 +100,7 @@ export const userService = {
         }));
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn('API getOrganizations failed, using local store:', e.message);
     }
     return [...orgsStore];

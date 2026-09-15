@@ -19,7 +19,7 @@ export const auditService = {
         }));
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn('API getAuditLogs failed, using fallback:', e.message);
     }
     return [...MOCK_AUDIT_LOGS];

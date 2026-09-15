@@ -10,7 +10,7 @@ export const templateService = {
         return templates;
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn('API getTemplates failed, using fallback:', e.message);
     }
     return [...MOCK_TEMPLATES];
@@ -23,7 +23,7 @@ export const templateService = {
         return template;
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn(`API getTemplateById(${id}) failed, using fallback:`, e.message);
     }
     return MOCK_TEMPLATES.find((t) => t.id === id);
@@ -38,7 +38,7 @@ export const templateService = {
         return res.modules;
       }
     } catch (e: any) {
-      if (e.statusCode) throw e;
+      if (e.statusCode !== undefined) throw e;
       console.warn(`API getTemplateModules(${id}) failed, using fallback:`, e.message);
     }
     return [];
