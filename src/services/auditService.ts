@@ -6,7 +6,7 @@ export const auditService = {
   async getAuditLogs(): Promise<AuditLog[]> {
     try {
       const logs = await ApiClient.get<any[]>('audit-logs');
-      if (Array.isArray(logs) && logs.length > 0) {
+      if (Array.isArray(logs)) {
         return logs.map((log: any) => ({
           id: log.id,
           timestamp: new Date(log.timestamp || log.createdAt).toLocaleString(),
@@ -19,8 +19,10 @@ export const auditService = {
         }));
       }
     } catch (e: any) {
+      if (e.statusCode) throw e;
       console.warn('API getAuditLogs failed, using fallback:', e.message);
     }
     return [...MOCK_AUDIT_LOGS];
   },
 };
+

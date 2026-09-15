@@ -43,26 +43,39 @@ const CHART_DATA = [
   { time: '24:00', requests: 15800, latency: 118 },
 ];
 
+import { userService } from '@/services/userService';
+import { auditService } from '@/services/auditService';
+
 export default function DashboardPage() {
   const [apps, setApps] = useState<Application[]>([]);
   const [connectors, setConnectors] = useState<Connector[]>([]);
-  const [logs, setLogs] = useState<IntegrationLog[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [usersCount, setUsersCount] = useState<number>(0);
+  const [orgsCount, setOrgsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
-      const [appsData, connectorsData, logsData] = await Promise.all([
+      const [appsData, connectorsData, logsData, usersData, orgsData] = await Promise.all([
         applicationService.getApplications(),
         integrationService.getConnectors(),
-        integrationService.getLogs(),
+        auditService.getAuditLogs(),
+        userService.getUsers(),
+        userService.getOrganizations(),
       ]);
       setApps(appsData);
       setConnectors(connectorsData);
-      setLogs(logsData);
+      setAuditLogs(logsData);
+      setUsersCount(usersData.length);
+      setOrgsCount(orgsData.length);
       setLoading(false);
     }
     loadData();
   }, []);
+
+  const standaloneCount = apps.filter((a) => (a.mode as string) === 'standalone').length;
+  const hubCount = apps.filter((a) => (a.mode as string) === 'integration_hub' || (a.mode as string) === 'integration-hub').length;
+  const totalModulesCount = apps.reduce((acc, app) => acc + (app.modules ? app.modules.length : 0), 0);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -77,7 +90,7 @@ export default function DashboardPage() {
               Good morning, Admin
             </h1>
             <p className="text-xs md:text-sm text-[#DDEEDF] max-w-2xl leading-relaxed">
-              Your enterprise application ecosystem is operating smoothly. Managing 12 business applications across Standalone and Integration Hub modes.
+              Your enterprise application ecosystem is operating smoothly. Managing {apps.length} business applications across Standalone and Integration Hub modes.
             </p>
           </div>
 
@@ -111,44 +124,44 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#173C2D]">12</span>
+            <span className="text-2xl font-black text-[#173C2D]">{apps.length}</span>
             <span className="text-[11px] font-semibold text-[#3F7659] bg-[#DDEEDF] px-2 py-0.5 rounded">
-              +2 this month
+              Active Apps
             </span>
           </div>
-          <p className="text-[11px] text-[#5A7165] mt-1">7 Standalone • 5 Integration Hub</p>
+          <p className="text-[11px] text-[#5A7165] mt-1">{standaloneCount} Standalone • {hubCount} Integration Hub</p>
         </div>
 
         <div className="p-5 bg-white border border-[#E2ECE5] rounded-xl shadow-xs hover:border-[#3F7659] transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#5A7165]">Active Connectors</span>
+            <span className="text-xs font-semibold text-[#5A7165]">Active Platform Users</span>
             <div className="p-2 bg-[#F3F9F5] text-[#3F7659] rounded-lg">
               <Network size={18} />
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#173C2D]">8</span>
+            <span className="text-2xl font-black text-[#173C2D]">{usersCount}</span>
             <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-              100% Operational
+              {orgsCount} Organization(s)
             </span>
           </div>
-          <p className="text-[11px] text-[#5A7165] mt-1">PHP CRM, Python HRMS, Legacy VMS</p>
+          <p className="text-[11px] text-[#5A7165] mt-1">Managed RBAC Accounts</p>
         </div>
 
         <div className="p-5 bg-white border border-[#E2ECE5] rounded-xl shadow-xs hover:border-[#3F7659] transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#5A7165]">24h API Traffic</span>
+            <span className="text-xs font-semibold text-[#5A7165]">Total Active Modules</span>
             <div className="p-2 bg-[#F3F9F5] text-[#3F7659] rounded-lg">
               <Zap size={18} />
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#173C2D]">348.2K</span>
+            <span className="text-2xl font-black text-[#173C2D]">{totalModulesCount}</span>
             <span className="text-[11px] font-semibold text-[#3F7659] bg-[#DDEEDF] px-2 py-0.5 rounded">
-              99.84% success
+              Configured
             </span>
           </div>
-          <p className="text-[11px] text-[#5A7165] mt-1">Avg latency: 142ms</p>
+          <p className="text-[11px] text-[#5A7165] mt-1">Across all applications</p>
         </div>
 
         <div className="p-5 bg-white border border-[#E2ECE5] rounded-xl shadow-xs hover:border-[#3F7659] transition-all">
@@ -159,12 +172,12 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#173C2D]">99.98%</span>
+            <span className="text-2xl font-black text-[#173C2D]">100%</span>
             <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
               Healthy
             </span>
           </div>
-          <p className="text-[11px] text-[#5A7165] mt-1">Zero downtime recorded</p>
+          <p className="text-[11px] text-[#5A7165] mt-1">API Connected to PostgreSQL</p>
         </div>
       </div>
 
@@ -479,7 +492,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="divide-y divide-[#F3F9F5]">
-          {logs.slice(0, 4).map((log) => (
+          {auditLogs.slice(0, 5).map((log) => (
             <div key={log.id} className="py-3 flex items-center justify-between text-xs">
               <div className="flex items-center gap-3">
                 <span className="p-1.5 rounded-full bg-[#DDEEDF] text-[#173C2D]">
@@ -487,10 +500,10 @@ export default function DashboardPage() {
                 </span>
                 <div>
                   <div className="font-bold text-[#173C2D]">
-                    {log.connectorName} <span className="font-mono text-[#3F7659] font-normal">{log.endpoint}</span>
+                    {log.action} <span className="font-mono text-[#3F7659] font-normal">({log.module})</span>
                   </div>
                   <div className="text-[11px] text-[#5A7165]">
-                    Status: {log.statusCode} OK • Latency: {log.durationMs}ms
+                    By: {log.user} • {log.details}
                   </div>
                 </div>
               </div>
