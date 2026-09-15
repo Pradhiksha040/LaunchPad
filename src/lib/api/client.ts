@@ -41,6 +41,7 @@ export class ApiClient {
   public static async request<T = any>(
     endpoint: string,
     options: RequestInit = {},
+    isRetry = false,
   ): Promise<T> {
     const url = `${API_URL.replace(/\/$/, '')}/${endpoint.replace(/^\//, '')}`;
     const headers = {
@@ -49,14 +50,32 @@ export class ApiClient {
     };
 
     try {
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         ...options,
         headers,
       });
 
-      if (response.status === 401) {
-        // Clear stored invalid credentials
-        // Don't auto redirect on check, but ensure token is cleaned up
+      if (response.status === 401 && !isRetry && !endpoint.includes('auth/login') && !endpoint.includes('auth/refresh')) {
+        const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('launchpad_refresh_token') : null;
+        if (refreshToken) {
+          try {
+            const refreshRes = await fetch(`${API_URL.replace(/\/$/, '')}/auth/refresh`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refreshToken }),
+            });
+            if (refreshRes.ok) {
+              const refreshData = await refreshRes.json();
+              if (refreshData.accessToken) {
+                this.setTokens(refreshData.accessToken, refreshData.refreshToken);
+                return this.request<T>(endpoint, options, true);
+              }
+            }
+          } catch {
+            // refresh attempt failed
+          }
+        }
+        this.clearTokens();
       }
 
       const responseText = await response.text();

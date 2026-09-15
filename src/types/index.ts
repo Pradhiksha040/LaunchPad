@@ -21,8 +21,10 @@ export interface AppModuleItem {
   category: string;
   icon?: string;
   required?: boolean;
+  isRequired?: boolean;
   recommended?: boolean;
   enabledByDefault?: boolean;
+  isEnabled?: boolean;
   dependencies?: string[];
   availableFor?: string[];
   order?: number;
@@ -39,6 +41,8 @@ export interface AppModuleItem {
     delete?: boolean;
   };
   custom?: boolean;
+  isCustom?: boolean;
+  configuration?: Record<string, any>;
 }
 
 export interface Application {

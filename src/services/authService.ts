@@ -5,10 +5,26 @@ export interface AuthResponse {
   user: User;
   accessToken: string;
   refreshToken: string;
-  expiresIn: number;
+  expiresIn?: number;
 }
 
 export const authService = {
+  async register(payload: {
+    name: string;
+    email: string;
+    password: string;
+    organizationName?: string;
+  }): Promise<AuthResponse> {
+    const response = await ApiClient.post<AuthResponse>('auth/register', payload);
+    if (response.accessToken) {
+      ApiClient.setTokens(response.accessToken, response.refreshToken);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('launchpad_user', JSON.stringify(response.user));
+      }
+    }
+    return response;
+  },
+
   async login(email: string, password: string): Promise<AuthResponse> {
     try {
       const response = await ApiClient.post<AuthResponse>('auth/login', {
@@ -25,9 +41,11 @@ export const authService = {
 
       return response;
     } catch (error: any) {
-      console.warn('API login failed, falling back to mock response if offline:', error.message);
+      if (error.statusCode) {
+        throw error;
+      }
+      console.warn('API login failed due to network error, fallback for preview:', error.message);
 
-      // Graceful fallback if backend is offline during frontend preview
       const mockUser: User = {
         id: 'user-demo-01',
         name: email.includes('alexander')
@@ -61,18 +79,17 @@ export const authService = {
 
   async getMe(): Promise<User | null> {
     try {
-      return await ApiClient.get<User>('auth/me');
-    } catch (e) {
-      if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem('launchpad_user');
-        if (stored) {
-          try {
-            return JSON.parse(stored);
-          } catch {}
+      const me = await ApiClient.get<User>('auth/me');
+      if (me && me.id) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('launchpad_user', JSON.stringify(me));
         }
+        return me;
       }
-      return null;
+    } catch (e) {
+      // ignore
     }
+    return this.getCurrentUserFromStorage();
   },
 
   logout() {
@@ -90,3 +107,4 @@ export const authService = {
     }
   },
 };
+

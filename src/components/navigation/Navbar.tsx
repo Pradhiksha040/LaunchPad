@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Search,
   Bell,
@@ -15,14 +16,35 @@ import {
   Sparkles,
   Command
 } from 'lucide-react';
+import { authService } from '@/services/authService';
+import { User } from '@/types';
 import { MOCK_NOTIFICATIONS } from '@/mock/data';
 
 export function Navbar() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(
     MOCK_NOTIFICATIONS.filter((n) => !n.read).length
   );
+
+  useEffect(() => {
+    async function loadUser() {
+      const u = await authService.getMe();
+      if (u) setUser(u);
+    }
+    loadUser();
+  }, []);
+
+  const handleLogout = () => {
+    authService.logout();
+    router.push('/login');
+  };
+
+  const initials = user?.name
+    ? user.name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
+    : 'AV';
 
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between h-16 px-6 bg-white border-b border-[#E2ECE5] shadow-2xs">
@@ -117,11 +139,15 @@ export function Navbar() {
             className="flex items-center gap-2 pl-2 pr-3 py-1.5 hover:bg-[#F3F9F5] rounded-lg transition-colors border border-transparent hover:border-[#DDEEDF]"
           >
             <div className="w-8 h-8 rounded-full bg-[#DDEEDF] text-[#173C2D] flex items-center justify-center font-bold text-xs">
-              AW
+              {initials}
             </div>
             <div className="hidden sm:flex flex-col text-left">
-              <span className="text-xs font-bold text-[#173C2D] leading-tight">Alexander W.</span>
-              <span className="text-[10px] font-medium text-[#5A7165]">Super Admin</span>
+              <span className="text-xs font-bold text-[#173C2D] leading-tight">
+                {user?.name || 'Alexander Vance'}
+              </span>
+              <span className="text-[10px] font-medium text-[#5A7165]">
+                {user?.role || 'Super Admin'}
+              </span>
             </div>
             <ChevronDown size={14} className="text-[#5A7165]" />
           </button>
@@ -130,10 +156,10 @@ export function Navbar() {
           {profileOpen && (
             <div className="absolute right-0 mt-2 w-56 bg-white border border-[#E2ECE5] rounded-xl shadow-lg py-2 z-50">
               <div className="px-4 py-2 border-b border-[#E2ECE5]">
-                <p className="text-xs font-bold text-[#173C2D]">Alexander Wright</p>
-                <p className="text-[11px] text-[#5A7165]">alexander@launchpad-os.com</p>
+                <p className="text-xs font-bold text-[#173C2D]">{user?.name || 'Alexander Vance'}</p>
+                <p className="text-[11px] text-[#5A7165]">{user?.email || 'alexander@launchpad-os.com'}</p>
                 <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-semibold bg-[#DDEEDF] text-[#173C2D] rounded">
-                  Acme Global Corp
+                  {user?.organization || 'TechSolutions Inc.'}
                 </span>
               </div>
 
@@ -144,21 +170,16 @@ export function Navbar() {
                 >
                   <UserIcon size={14} /> Account Settings
                 </Link>
-                <Link
-                  href="/developer/security"
-                  className="flex items-center gap-2 px-4 py-2 text-xs text-[#173C2D] hover:bg-[#F3F9F5]"
-                >
-                  <Sparkles size={14} /> Security Center
-                </Link>
               </div>
 
               <div className="border-t border-[#E2ECE5] pt-1">
-                <Link
-                  href="/login"
-                  className="flex items-center gap-2 px-4 py-2 text-xs text-red-600 hover:bg-red-50"
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-red-600 hover:bg-red-50 text-left"
                 >
                   <LogOut size={14} /> Log Out
-                </Link>
+                </button>
               </div>
             </div>
           )}
