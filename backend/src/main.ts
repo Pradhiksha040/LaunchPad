@@ -3,9 +3,11 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { validateEnvironmentVariables } from './common/config/env.validation';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+  validateEnvironmentVariables();
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
@@ -26,6 +28,7 @@ async function bootstrap() {
   );
 
   app.useGlobalFilters(new HttpExceptionFilter());
+  app.enableShutdownHooks();
 
   // Swagger OpenAPI Documentation
   const config = new DocumentBuilder()
@@ -41,6 +44,8 @@ async function bootstrap() {
     .addTag('Templates', 'Pre-configured application starter templates')
     .addTag('Settings', 'Platform and tenant settings')
     .addTag('Audit Logs', 'Platform audit logging and compliance action trails')
+    .addTag('Developer Portal & API Management', 'API Keys, rate limits, webhooks, and docs')
+    .addTag('Platform Governance & System Health', 'Governance, policy checks, health probes')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

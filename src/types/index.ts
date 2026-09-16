@@ -197,3 +197,72 @@ export interface AnalyticsMetric {
   apiSuccessRate: number;
   avgLatencyMs: number;
 }
+
+export interface WorkflowCondition {
+  id?: string;
+  field: string;
+  operator: 'EQUALS' | 'NOT_EQUALS' | 'CONTAINS' | 'NOT_CONTAINS' | 'GREATER_THAN' | 'LESS_THAN' | 'GREATER_OR_EQUAL' | 'LESS_OR_EQUAL' | 'EXISTS' | 'NOT_EXISTS';
+  value?: string;
+  logicalOperator?: 'AND' | 'OR';
+  order?: number;
+}
+
+export interface WorkflowAction {
+  id?: string;
+  type: 'SEND_NOTIFICATION' | 'CREATE_RECORD' | 'UPDATE_RECORD' | 'CALL_API' | 'WEBHOOK' | 'GENERATE_FILE' | 'CREATE_AUDIT_LOG';
+  configuration?: Record<string, any>;
+  order?: number;
+  enabled?: boolean;
+}
+
+export interface Workflow {
+  id: string;
+  organizationId?: string;
+  applicationId: string;
+  applicationName?: string;
+  name: string;
+  description?: string;
+  status: 'draft' | 'active' | 'paused' | 'archived';
+  triggerType: 'EVENT' | 'SCHEDULE' | 'WEBHOOK' | 'MANUAL';
+  enabled: boolean;
+  trigger?: {
+    type: string;
+    eventName?: string;
+    configuration?: Record<string, any>;
+  };
+  conditions: WorkflowCondition[];
+  actions: WorkflowAction[];
+  lastExecutionStatus?: string;
+  lastExecutionTime?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowExecutionStep {
+  id: string;
+  actionId?: string;
+  actionType: string;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
+  input?: string;
+  output?: string;
+  error?: string;
+  startedAt: string;
+  completedAt?: string;
+}
+
+export interface WorkflowExecution {
+  id: string;
+  workflowId: string;
+  workflowName?: string;
+  applicationId: string;
+  applicationName?: string;
+  triggerData?: Record<string, any>;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
+  startedAt: string;
+  completedAt?: string;
+  error?: string;
+  retryCount: number;
+  isTest?: boolean;
+  steps?: WorkflowExecutionStep[];
+}
+

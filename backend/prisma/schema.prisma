@@ -32,6 +32,63 @@ enum UserStatus {
   PENDING
 }
 
+enum IntegrationAuthType {
+  API_KEY
+  BEARER_TOKEN
+  JWT
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  DISABLED
+  ERROR
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum WorkflowTriggerType {
+  EVENT
+  SCHEDULE
+  WEBHOOK
+  MANUAL
+}
+
+enum WorkflowOperator {
+  EQUALS
+  NOT_EQUALS
+  CONTAINS
+  NOT_CONTAINS
+  GREATER_THAN
+  LESS_THAN
+  GREATER_OR_EQUAL
+  LESS_OR_EQUAL
+  EXISTS
+  NOT_EXISTS
+}
+
+enum WorkflowActionType {
+  SEND_NOTIFICATION
+  CREATE_RECORD
+  UPDATE_RECORD
+  CALL_API
+  WEBHOOK
+  GENERATE_FILE
+  CREATE_AUDIT_LOG
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
 model Organization {
   id           String        @id @default(uuid())
   name         String
@@ -40,13 +97,27 @@ model Organization {
   domain       String?
   plan         String        @default("Starter")
   status       String        @default("active")
+  branding     Json?
+  isPublisher  Boolean       @default(false)
+  publisherProfile Json?
+  publisherStatus String       @default("UNVERIFIED") // UNVERIFIED, VERIFIED_PARTNER, ENTERPRISE_VENDOR
+  verifiedPublisherAt DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  users        User[]
-  roles        Role[]
-  applications Application[]
-  auditLogs    AuditLog[]
+  users                   User[]
+  roles                   Role[]
+  applications            Application[]
+  auditLogs               AuditLog[]
+  integrations            Integration[]
+  workflows               Workflow[]
+  workflowExecutions      WorkflowExecution[]
+  apiKeys                 ApiKey[]
+  webhookSubscriptions    WebhookSubscription[]
+  apiUsageLogs            ApiUsageLog[]
+  tenantDomains           TenantDomain[]
+  marketplaceAssets       MarketplaceAsset[]
+  marketplaceInstallations MarketplaceInstallation[]
 
   @@map("organizations")
 }
@@ -131,10 +202,18 @@ model Application {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
-  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  template       Template?            @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  modules        ApplicationModule[]
-  settings       ApplicationSetting[]
+  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  template           Template?            @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  modules            ApplicationModule[]
+  settings           ApplicationSetting[]
+  integrations       Integration[]
+  workflows          Workflow[]
+  workflowExecutions WorkflowExecution[]
+  apiKeys            ApiKey[]
+  webhookSubscriptions WebhookSubscription[]
+  apiUsageLogs       ApiUsageLog[]
+  tenantDomains      TenantDomain[]
+  marketplaceInstallations MarketplaceInstallation[]
 
   @@unique([organizationId, slug])
   @@map("applications")
@@ -196,5 +275,346 @@ model AuditLog {
   user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
+  @@index([timestamp])
   @@map("audit_logs")
 }
+
+model Connector {
+  id                 String        @id @default(uuid())
+  name               String
+  type               String        @default("REST_GENERIC")
+  category           String        @default("Custom")
+  description        String?
+  targetSystem       String        @default("External API")
+  targetTech         String        @default("REST")
+  supportedAuthTypes Json?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  integrations       Integration[]
+
+  @@map("connectors")
+}
+
+model Integration {
+  id             String                @id @default(uuid())
+  organizationId String
+  applicationId  String
+  connectorId    String?
+  name           String
+  type           String                @default("REST_GENERIC")
+  baseUrl        String
+  authType       IntegrationAuthType   @default(API_KEY)
+  status         IntegrationStatus     @default(ACTIVE)
+  configuration  Json?
+  lastTestedAt   DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application    Application           @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  connector      Connector?            @relation(fields: [connectorId], references: [id], onDelete: SetNull)
+  credential     IntegrationCredential?
+  logs           IntegrationLog[]
+
+  @@map("integrations")
+}
+
+model IntegrationCredential {
+  id            String              @id @default(uuid())
+  integrationId String              @unique
+  authType      IntegrationAuthType @default(API_KEY)
+  encryptedData String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  integration   Integration         @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@map("integration_credentials")
+}
+
+model IntegrationLog {
+  id              String      @id @default(uuid())
+  integrationId   String
+  method          String
+  endpoint        String
+  statusCode      Int?
+  success         Boolean     @default(true)
+  durationMs      Int         @default(0)
+  requestPayload  String?
+  responsePayload String?
+  errorMessage    String?
+  timestamp       DateTime    @default(now())
+
+  integration     Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@map("integration_logs")
+}
+
+model Workflow {
+  id             String             @id @default(uuid())
+  organizationId String
+  applicationId  String
+  name           String
+  description    String?
+  status         WorkflowStatus     @default(DRAFT)
+  triggerType    WorkflowTriggerType @default(EVENT)
+  enabled        Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application    Application         @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  triggers       WorkflowTrigger[]
+  conditions     WorkflowCondition[]
+  actions        WorkflowAction[]
+  executions     WorkflowExecution[]
+
+  @@map("workflows")
+}
+
+model WorkflowTrigger {
+  id            String              @id @default(uuid())
+  workflowId    String
+  type          WorkflowTriggerType @default(EVENT)
+  eventName     String?             // e.g., visitor.created, visitor.approved
+  configuration Json?
+  createdAt     DateTime            @default(now())
+
+  workflow      Workflow            @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@map("workflow_triggers")
+}
+
+model WorkflowCondition {
+  id              String           @id @default(uuid())
+  workflowId      String
+  field           String
+  operator        WorkflowOperator @default(EQUALS)
+  value           String?
+  logicalOperator String           @default("AND")
+  order           Int              @default(0)
+
+  workflow        Workflow         @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@map("workflow_conditions")
+}
+
+model WorkflowAction {
+  id            String             @id @default(uuid())
+  workflowId    String
+  type          WorkflowActionType @default(SEND_NOTIFICATION)
+  configuration Json?
+  order         Int                @default(0)
+  enabled       Boolean            @default(true)
+
+  workflow      Workflow           @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@map("workflow_actions")
+}
+
+model WorkflowExecution {
+  id             String                  @id @default(uuid())
+  workflowId     String
+  organizationId String
+  applicationId  String
+  triggerData    Json?
+  status         ExecutionStatus         @default(PENDING)
+  startedAt      DateTime                @default(now())
+  completedAt    DateTime?
+  error          String?
+  retryCount     Int                     @default(0)
+  isTest         Boolean                 @default(false)
+
+  workflow       Workflow                @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application    Application             @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  steps          WorkflowExecutionStep[]
+
+  @@map("workflow_executions")
+}
+
+model WorkflowExecutionStep {
+  id          String            @id @default(uuid())
+  executionId String
+  actionId    String?
+  actionType  String
+  status      ExecutionStatus   @default(PENDING)
+  input       String?
+  output      String?
+  error       String?
+  startedAt   DateTime          @default(now())
+  completedAt DateTime?
+
+  execution   WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@map("workflow_execution_steps")
+}
+
+model ApiKey {
+  id             String      @id @default(uuid())
+  organizationId String
+  applicationId  String?
+  name           String
+  keyPrefix      String      @default("lp_live_")
+  keyHash        String      @unique
+  keyMasked      String
+  scopes         Json
+  rateLimit      Int         @default(100)
+  status         String      @default("active")
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application          Application?          @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  webhookSubscriptions WebhookSubscription[]
+  apiUsageLogs         ApiUsageLog[]
+
+  @@index([organizationId])
+  @@map("api_keys")
+}
+
+model WebhookSubscription {
+  id             String       @id @default(uuid())
+  organizationId String
+  applicationId  String?
+  apiKeyId       String?
+  name           String
+  targetUrl      String
+  secret         String
+  events         Json
+  status         String       @default("active")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application    Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  apiKey         ApiKey?      @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@map("webhook_subscriptions")
+}
+
+model ApiUsageLog {
+  id             String       @id @default(uuid())
+  apiKeyId       String?
+  organizationId String
+  applicationId  String?
+  endpoint       String
+  method         String
+  statusCode     Int
+  durationMs     Int          @default(0)
+  ipAddress      String?
+  userAgent      String?
+  timestamp      DateTime     @default(now())
+
+  apiKey         ApiKey?      @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application    Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([timestamp])
+  @@map("api_usage_logs")
+}
+
+model TenantDomain {
+  id                    String    @id @default(uuid())
+  organizationId        String
+  applicationId         String?
+  domain                String    @unique
+  type                  String    @default("CUSTOM") // SUBDOMAIN, CUSTOM
+  status                String    @default("PENDING") // PENDING, DNS_CONFIG_REQUIRED, VERIFIED, ACTIVE, FAILED
+  verificationToken     String
+  verificationTxtRecord String
+  isPrimary             Boolean   @default(false)
+  verifiedAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application  Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([domain])
+  @@map("tenant_domains")
+}
+
+model MarketplaceAsset {
+  id                 String                    @id @default(uuid())
+  name               String
+  slug               String                    @unique
+  description        String
+  category           String                    @default("General")
+  type               String                    @default("APPLICATION") // APPLICATION, MODULE, WORKFLOW
+  version            String                    @default("1.0.0")
+  publisherId        String
+  authorName         String
+  iconUrl            String?
+  screenshots        Json?
+  tags               Json?
+  pricingType        String                    @default("FREE") // FREE, ONE_TIME, SUBSCRIPTION, CUSTOM
+  price              Float                     @default(0)
+  status             String                      @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED, PUBLISHED, UNPUBLISHED
+  scanStatus         String                      @default("SCAN_PENDING") // SCAN_PENDING, SCAN_PASSED, WARNINGS_FOUND, SCAN_FAILED, MANUAL_REVIEW, APPROVED
+  scannedAt          DateTime?
+  installationsCount Int                         @default(0)
+  visibility         String                      @default("PUBLIC") // PUBLIC, PRIVATE
+  requiredModules    Json?
+  configuration      Json?
+  changelog          String?
+  rejectionReason    String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  publisher        Organization                @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  installations    MarketplaceInstallation[]
+  securityFindings MarketplaceSecurityFinding[]
+
+  @@index([publisherId])
+  @@index([status])
+  @@index([scanStatus])
+  @@index([category])
+  @@index([type])
+  @@map("marketplace_assets")
+}
+
+model MarketplaceInstallation {
+  id               String           @id @default(uuid())
+  assetId          String
+  organizationId   String
+  applicationId    String?
+  installedVersion String           @default("1.0.0")
+  status           String           @default("ACTIVE")
+  installedAt      DateTime         @default(now())
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  asset        MarketplaceAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application  Application?      @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([assetId])
+  @@map("marketplace_installations")
+}
+
+model MarketplaceSecurityFinding {
+  id          String   @id @default(uuid())
+  assetId     String
+  severity    String   // INFO, LOW, MEDIUM, HIGH, CRITICAL
+  findingType String   // HARDCODED_SECRET, SUSPICIOUS_EXECUTION, DANGEROUS_WORKFLOW, UNTRUSTED_URL, UNPROTECTED_CREDENTIAL
+  description String
+  location    String?
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  asset MarketplaceAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@index([severity])
+  @@map("marketplace_security_findings")
+}
+

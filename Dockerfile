@@ -1,42 +1,35 @@
-# Multi-stage Dockerfile for LaunchPad OS Monorepo
+# Multi-Stage Production Dockerfile for LaunchPad OS Next.js Frontend
 
-FROM node:20-alpine AS base
+# Stage 1: Dependencies
+FROM node:20-alpine AS deps
 WORKDIR /app
-RUN apk add --no-libc6-compat libc6-compat
-COPY package.json turbo.json package-lock.json* ./
+RUN apk add --no-cache libc6-compat
+COPY package.json package-lock.json* ./
+RUN npm ci
 
-# Installer stage
-FROM base AS installer
-COPY packages ./packages
-COPY apps ./apps
-RUN npm install
-
-# Build API stage
-FROM installer AS api-builder
-RUN npm run build --filter=@launchpad/api
-
-# Build Web stage
-FROM installer AS web-builder
+# Stage 2: Builder
+FROM node:20-alpine AS builder
+WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED 1
-RUN npm run build --filter=@launchpad/web
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
 
-# API Runner
-FROM node:20-alpine AS api-runner
+# Stage 3: Runner
+FROM node:20-alpine AS runner
 WORKDIR /app
-ENV NODE_ENV production
-COPY --from=api-builder /app/apps/api/dist ./dist
-COPY --from=api-builder /app/node_modules ./node_modules
-COPY --from=api-builder /app/apps/api/package.json ./package.json
-EXPOSE 4000
-CMD ["node", "dist/main.js"]
 
-# Web Runner
-FROM node:20-alpine AS web-runner
-WORKDIR /app
-ENV NODE_ENV production
-ENV PORT 3000
-COPY --from=web-builder /app/apps/web/.next ./
-COPY --from=web-builder /app/apps/web/public ./public
-COPY --from=web-builder /app/node_modules ./node_modules
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Security: Run as non-root node user
+USER node
+
+COPY --chown=node:node --from=builder /app/package.json ./package.json
+COPY --chown=node:node --from=builder /app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /app/.next ./.next
+COPY --chown=node:node --from=builder /app/public ./public
+
 EXPOSE 3000
+
 CMD ["npm", "run", "start"]

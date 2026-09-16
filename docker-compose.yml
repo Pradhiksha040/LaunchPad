@@ -11,65 +11,46 @@ services:
       POSTGRES_DB: launchpad_os
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U launchpad -d launchpad_os"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  redis:
-    image: redis:7-alpine
-    container_name: launchpad-redis
-    restart: always
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: launchpad-rabbitmq
-    restart: always
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: launchpad
-      RABBITMQ_DEFAULT_PASS: launchpad_password
-
-  api:
+  backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-      target: api-runner
-    container_name: launchpad-api
+    container_name: launchpad-backend
     restart: always
     ports:
       - "4000:4000"
     environment:
       PORT: 4000
+      NODE_ENV: production
       DATABASE_URL: "postgresql://launchpad:launchpad_password@postgres:5432/launchpad_os?schema=public"
-      REDIS_URL: "redis://redis:6379"
-      RABBITMQ_URL: "amqp://launchpad:launchpad_password@rabbitmq:5672"
       JWT_SECRET: "launchpad_enterprise_jwt_secret_key_2026_super_secure"
-      MODE: "STANDALONE"
+      CORS_ORIGIN: "http://localhost:3000,http://localhost:4000"
     depends_on:
-      - postgres
-      - redis
-      - rabbitmq
+      postgres:
+        condition: service_healthy
 
-  web:
+  frontend:
     build:
       context: .
       dockerfile: Dockerfile
-      target: web-runner
-    container_name: launchpad-web
+    container_name: launchpad-frontend
     restart: always
     ports:
       - "3000:3000"
     environment:
       PORT: 3000
-      NEXT_PUBLIC_API_URL: "http://localhost:4000/api/v1"
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: "http://localhost:4000"
     depends_on:
-      - api
+      - backend
 
 volumes:
   postgres_data:
-  redis_data:

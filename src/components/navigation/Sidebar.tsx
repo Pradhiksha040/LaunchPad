@@ -28,7 +28,8 @@ import {
   Sparkles,
   ArrowUpRight,
   Server,
-  Building
+  Building,
+  Store
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBranding } from '@/context/BrandingContext';
@@ -59,7 +60,9 @@ export function Sidebar() {
     {
       title: 'Build',
       items: [
+        { name: 'App Marketplace', href: '/marketplace', icon: Store, badge: 'Hub' },
         { name: 'Applications', href: '/applications', icon: Boxes, badge: '12' },
+        { name: 'Workflows', href: '/workflows', icon: GitFork, badge: 'New' },
         { name: 'Templates', href: '/templates', icon: LayoutGrid, badge: 'Market' },
         { name: 'Page Builder', href: '/builders/page', icon: FileCode2 },
         { name: 'Form Builder', href: '/builders/form', icon: FormInput },
@@ -69,6 +72,8 @@ export function Sidebar() {
     {
       title: 'Manage',
       items: [
+        { name: 'Governance', href: '/governance', icon: ShieldCheck, badge: 'Admin' },
+        { name: 'Marketplace Review', href: '/governance/marketplace-review', icon: ShieldCheck, badge: 'Sec' },
         { name: 'Users & Roles', href: '/users', icon: Users },
         { name: 'Organizations', href: '/organizations', icon: Building2 },
       ],

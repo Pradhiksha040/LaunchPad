@@ -68,10 +68,12 @@ import {
   UserCheck,
   History,
   UserX,
-  CheckSquare
+  CheckSquare,
+  RefreshCw,
 } from 'lucide-react';
 import { applicationService } from '@/services/applicationService';
 import { templateService } from '@/services/templateService';
+import { aiGeneratorService, AiAppGenerationPlan } from '@/services/aiGeneratorService';
 import { MOCK_TEMPLATES } from '@/mock/data';
 import { AppMode, BrandingConfig, AppModuleItem } from '@/types';
 import { getModulesForTemplate, getTemplateDisplayName } from '@/data/moduleCatalog';
@@ -133,6 +135,43 @@ export default function CreateApplicationWizardPage() {
   // Step 7: Creation animation state
   const [creating, setCreating] = useState(false);
   const [creationStepIndex, setCreationStepIndex] = useState(0);
+
+  // AI Generator State
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [parsingAi, setParsingAi] = useState(false);
+  const [aiPlan, setAiPlan] = useState<AiAppGenerationPlan | null>(null);
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [deployingAi, setDeployingAi] = useState(false);
+
+  const handleParseAiRequirement = async (promptText?: string) => {
+    const textToParse = promptText || aiPrompt;
+    if (!textToParse.trim()) return;
+
+    setParsingAi(true);
+    try {
+      const plan = await aiGeneratorService.parseRequirement(textToParse, mode, industry);
+      setAiPlan(plan);
+      setShowAiModal(true);
+    } catch {
+      alert('Failed to parse requirement with AI');
+    } finally {
+      setParsingAi(false);
+    }
+  };
+
+  const handleDeployAiPlan = async () => {
+    if (!aiPlan) return;
+    setDeployingAi(true);
+    try {
+      const res = await aiGeneratorService.deployPlan(aiPlan);
+      setShowAiModal(false);
+      router.push(`/applications/${res.application.id}`);
+    } catch {
+      alert('Failed to deploy AI application');
+    } finally {
+      setDeployingAi(false);
+    }
+  };
 
   // Dynamic API Template Catalog State
   const [apiModules, setApiModules] = useState<AppModuleItem[]>([]);
@@ -398,6 +437,78 @@ export default function CreateApplicationWizardPage() {
         {/* STEP 1: Basic Application Details */}
         {step === 1 && (
           <div className="space-y-6 animate-in fade-in duration-200">
+            {/* AI Generator Hero Banner */}
+            <div className="p-5 bg-[#F3F9F5] border border-[#3F7659]/30 rounded-2xl space-y-3 shadow-xs">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#3F7659] uppercase tracking-wider">
+                <Sparkles size={16} /> AI Assistant Application & Workflow Generator
+              </div>
+              <p className="text-xs text-[#5A7165] leading-relaxed">
+                Describe your business requirement in natural language. LaunchPad AI will analyze your requirement and generate a complete starter blueprint with modules, automated workflows, and branding for your review.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="e.g. Create a Visitor Management System for a corporate office with visitor registration, appointment booking, QR check-in, host notifications and visitor reports."
+                  className="flex-1 px-3.5 py-2.5 text-xs bg-white border border-[#E2ECE5] rounded-xl text-[#173C2D] focus:outline-hidden focus:border-[#3F7659]"
+                />
+                <button
+                  type="button"
+                  disabled={parsingAi || !aiPrompt.trim()}
+                  onClick={() => handleParseAiRequirement()}
+                  className="px-4 py-2.5 bg-[#3F7659] hover:bg-[#173C2D] text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 shadow-xs disabled:opacity-50"
+                >
+                  {parsingAi ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  {parsingAi ? 'Parsing Requirement...' : 'Generate with AI'}
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <span className="text-[10px] font-bold text-[#5A7165] self-center mr-1">Sample Requirements:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = 'Create a Visitor Management System for a corporate office with visitor registration, appointment booking, QR check-in, host notifications and visitor reports.';
+                    setAiPrompt(p);
+                    handleParseAiRequirement(p);
+                  }}
+                  className="px-2.5 py-1 bg-white hover:bg-[#DDEEDF] text-[#3F7659] text-[10px] font-semibold rounded-lg border border-[#E2ECE5] transition-colors"
+                >
+                  Corporate Visitor Pass OS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = 'Build a Sales CRM Portal with lead scoring, deal pipeline Kanban, support tickets, and sales reports.';
+                    setAiPrompt(p);
+                    handleParseAiRequirement(p);
+                  }}
+                  className="px-2.5 py-1 bg-white hover:bg-[#DDEEDF] text-[#3F7659] text-[10px] font-semibold rounded-lg border border-[#E2ECE5] transition-colors"
+                >
+                  Sales CRM & Leads
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = 'Create an HRMS Portal with employee master file, attendance clock-in, leave approval requests, and payroll.';
+                    setAiPrompt(p);
+                    handleParseAiRequirement(p);
+                  }}
+                  className="px-2.5 py-1 bg-white hover:bg-[#DDEEDF] text-[#3F7659] text-[10px] font-semibold rounded-lg border border-[#E2ECE5] transition-colors"
+                >
+                  HRMS & Attendance
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 my-4">
+              <div className="flex-1 border-t border-[#E2ECE5]"></div>
+              <span className="text-[11px] font-bold text-[#5A7165] uppercase tracking-wider">Or Define Manually</span>
+              <div className="flex-1 border-t border-[#E2ECE5]"></div>
+            </div>
+
             <div>
               <h2 className="text-lg font-bold text-[#173C2D]">Step 1: Application Details</h2>
               <p className="text-xs text-[#5A7165]">Define basic information and metadata for your app.</p>
@@ -1235,6 +1346,110 @@ export default function CreateApplicationWizardPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AI Review Blueprint Modal */}
+      {showAiModal && aiPlan && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white border border-[#E2ECE5] rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#E2ECE5] pb-3">
+              <div>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#3F7659] uppercase tracking-wider">
+                  <Sparkles size={14} /> AI Generation Blueprint Review
+                </div>
+                <h3 className="text-base font-extrabold text-[#173C2D] mt-0.5">{aiPlan.appName}</h3>
+              </div>
+              <button
+                onClick={() => setShowAiModal(false)}
+                className="text-xs font-bold text-[#5A7165] hover:text-[#173C2D]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="p-3 bg-[#F3F9F5] rounded-xl border border-[#3F7659]/20 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#173C2D]">Template: {aiPlan.templateName}</span>
+                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-bold text-[10px]">
+                    {aiPlan.mode.toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-[#5A7165]">{aiPlan.description}</p>
+                <div className="text-[11px] font-semibold text-[#3F7659] pt-1">
+                  Industry: {aiPlan.industry} • Category: {aiPlan.type}
+                </div>
+              </div>
+
+              {/* Selected Modules */}
+              <div>
+                <h4 className="font-extrabold text-[#173C2D] uppercase tracking-wider text-[11px] mb-2">
+                  Selected Modules ({aiPlan.moduleIds.length})
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {aiPlan.moduleIds.map((mId) => (
+                    <div key={mId} className="p-2 bg-[#F3F9F5] border border-[#E2ECE5] rounded-lg flex items-center gap-1.5 font-medium text-[#173C2D]">
+                      <CheckCircle2 size={12} className="text-[#3F7659] shrink-0" />
+                      <span className="truncate">{mId.replace(/^[a-z]+-/, '').replace(/-/g, ' ')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Suggested Workflows */}
+              <div>
+                <h4 className="font-extrabold text-[#173C2D] uppercase tracking-wider text-[11px] mb-2">
+                  Suggested Automated Workflows ({aiPlan.suggestedWorkflows.length})
+                </h4>
+                <div className="space-y-2">
+                  {aiPlan.suggestedWorkflows.map((wf, idx) => (
+                    <div key={idx} className="p-3 bg-white border border-[#E2ECE5] rounded-xl space-y-1">
+                      <div className="flex items-center justify-between font-bold text-[#173C2D]">
+                        <span>{wf.name}</span>
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] rounded-md font-mono">
+                          Trigger: {wf.triggerType} ({wf.eventName || 'custom'})
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#5A7165]">{wf.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Target Connector (if hub mode) */}
+              {aiPlan.targetBackend && (
+                <div>
+                  <h4 className="font-extrabold text-[#173C2D] uppercase tracking-wider text-[11px] mb-1">
+                    Target System Connector
+                  </h4>
+                  <div className="p-3 bg-[#F3F9F5] border border-[#E2ECE5] rounded-xl font-mono text-[11px] text-[#173C2D]">
+                    {aiPlan.targetBackend.systemName} ({aiPlan.targetBackend.techStack}) - {aiPlan.targetBackend.endpointUrl}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E2ECE5]">
+              <button
+                type="button"
+                onClick={() => setShowAiModal(false)}
+                className="px-4 py-2.5 text-xs font-bold text-[#5A7165] hover:text-[#173C2D]"
+              >
+                Cancel & Edit
+              </button>
+              <button
+                type="button"
+                disabled={deployingAi}
+                onClick={handleDeployAiPlan}
+                className="px-5 py-2.5 bg-[#3F7659] hover:bg-[#173C2D] text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center gap-2"
+              >
+                {deployingAi ? <RefreshCw size={14} className="animate-spin" /> : <Rocket size={14} />}
+                {deployingAi ? 'Deploying Application...' : 'Approve & Deploy Application'}
+              </button>
+            </div>
           </div>
         </div>
       )}
