@@ -29,6 +29,10 @@ export class GovernanceService {
       publishedAssets,
       pendingReviewsCount,
       totalInstallations,
+      assetsAwaitingScan,
+      passedScans,
+      failedScans,
+      assetsWithWarnings,
     ] = await Promise.all([
       this.prisma.application.count({ where: { organizationId: orgId } }),
       this.prisma.user.count({ where: { organizationId: orgId } }),
@@ -41,6 +45,10 @@ export class GovernanceService {
       this.prisma.marketplaceAsset.count({ where: { status: 'PUBLISHED' } }),
       this.prisma.marketplaceAsset.count({ where: { status: 'SUBMITTED' } }),
       this.prisma.marketplaceInstallation.count({ where: { organizationId: orgId } }),
+      this.prisma.marketplaceAsset.count({ where: { scanStatus: 'SCAN_PENDING' } }),
+      this.prisma.marketplaceAsset.count({ where: { scanStatus: 'SCAN_PASSED' } }),
+      this.prisma.marketplaceAsset.count({ where: { scanStatus: 'SCAN_FAILED' } }),
+      this.prisma.marketplaceAsset.count({ where: { scanStatus: 'WARNINGS_FOUND' } }),
     ]);
 
     return {
@@ -57,6 +65,7 @@ export class GovernanceService {
         customDomainsEnabled: true,
         whiteLabelingActive: true,
         marketplacePublishingActive: true,
+        marketplaceSecurityScanning: true,
       },
       stats: {
         applicationsCount: appsCount,
@@ -71,6 +80,11 @@ export class GovernanceService {
         publishedAssets,
         pendingReviewsCount,
         totalInstallations,
+        assetsAwaitingScan,
+        assetsAwaitingReview: pendingReviewsCount,
+        passedScans,
+        failedScans,
+        assetsWithWarnings,
       },
     };
   }
@@ -242,6 +256,13 @@ export class GovernanceService {
         category: 'AI Assistant',
         item: 'AI Requirement Parser & Blueprint Review',
         description: 'Converts prompts to structured plans with human review before database deployment.',
+        status: 'VERIFIED',
+      },
+      {
+        id: 'chk-marketplace-security',
+        category: 'Marketplace & Security',
+        item: 'Marketplace Security Scanning & Trust Layer',
+        description: 'Automated static analyzer pipeline, security gate enforcement, publisher verification, version resets, and review dashboard.',
         status: 'VERIFIED',
       },
       {

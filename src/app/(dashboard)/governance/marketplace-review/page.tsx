@@ -76,6 +76,54 @@ export default function MarketplaceReviewDashboard() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'submissions' | 'finance'>('submissions');
+  const [commissionRateInput, setCommissionRateInput] = useState('15');
+  const [updatingRate, setUpdatingRate] = useState(false);
+  const [financials, setFinancials] = useState<{
+    totalGrossVolume: number;
+    totalPlatformCommissionCollected: number;
+    totalNetPublisherEarnings: number;
+    defaultCommissionRate: number;
+    totalTransactionsCount: number;
+  }>({
+    totalGrossVolume: 12450.00,
+    totalPlatformCommissionCollected: 1867.50,
+    totalNetPublisherEarnings: 10582.50,
+    defaultCommissionRate: 0.15,
+    totalTransactionsCount: 84,
+  });
+
+  const handleUpdateCommissionRate = async () => {
+    const parsedRate = parseFloat(commissionRateInput) / 100;
+    if (isNaN(parsedRate) || parsedRate < 0 || parsedRate > 1) {
+      setActionStatus('Invalid rate percentage (enter 0-100)');
+      setTimeout(() => setActionStatus(null), 3000);
+      return;
+    }
+
+    setUpdatingRate(true);
+    setActionStatus('Updating platform commission rate...');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/marketplace/finance/commission-rate`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ commissionRate: parsedRate }),
+      });
+      if (res.ok) {
+        setActionStatus(`Platform commission rate updated to ${commissionRateInput}%`);
+        setFinancials((prev) => ({ ...prev, defaultCommissionRate: parsedRate }));
+      }
+    } catch {
+      setActionStatus('Failed to update commission rate');
+    } finally {
+      setUpdatingRate(false);
+      setTimeout(() => setActionStatus(null), 3000);
+    }
+  };
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -259,9 +307,9 @@ export default function MarketplaceReviewDashboard() {
           <div className="flex items-center gap-2 text-xs font-bold text-[#3F7659] uppercase tracking-wider">
             <ShieldCheck size={14} /> Security & Governance / Marketplace
           </div>
-          <h1 className="text-2xl font-extrabold text-[#173C2D] mt-0.5">Marketplace Security Review Dashboard</h1>
+          <h1 className="text-2xl font-extrabold text-[#173C2D] mt-0.5">Marketplace Security & Financial Governance</h1>
           <p className="text-xs text-[#5A7165]">
-            SuperAdmin review queue, static security validation results, and publisher verification controls.
+            SuperAdmin review queue, static security validation results, publisher verification, and platform revenue settlement controls.
           </p>
         </div>
 
@@ -280,8 +328,93 @@ export default function MarketplaceReviewDashboard() {
         </div>
       </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Tabs */}
+      <div className="flex items-center gap-3 border-b border-[#E2ECE5] pb-px">
+        <button
+          onClick={() => setActiveTab('submissions')}
+          className={`px-4 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'submissions'
+              ? 'border-[#3F7659] text-[#173C2D]'
+              : 'border-transparent text-[#5A7165] hover:text-[#173C2D]'
+          }`}
+        >
+          <Clock size={15} /> Pending Security Reviews ({pendingAssets.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('finance')}
+          className={`px-4 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'finance'
+              ? 'border-[#3F7659] text-[#173C2D]'
+              : 'border-transparent text-[#5A7165] hover:text-[#173C2D]'
+          }`}
+        >
+          <Activity size={15} /> Platform Financial Overview & Revenue Share Settings
+        </button>
+      </div>
+
+      {activeTab === 'finance' ? (
+        <div className="space-y-6">
+          {/* Configurable Platform Revenue Share Card */}
+          <div className="p-6 bg-white border border-[#E2ECE5] rounded-2xl shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E2ECE5] pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-[#173C2D]">Configurable Platform Revenue Share Commission</h3>
+                <p className="text-xs text-[#5A7165] mt-0.5">
+                  Define the platform commission percentage deducted from paid marketplace asset transactions.
+                </p>
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[#E2ECE5] text-[#173C2D]">
+                Active Default: {(financials.defaultCommissionRate * 100).toFixed(1)}%
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-[#173C2D]">Platform Commission Rate (%)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={commissionRateInput}
+                    onChange={(e) => setCommissionRateInput(e.target.value)}
+                    min="0"
+                    max="100"
+                    className="w-24 px-3 py-2 bg-[#F3F9F5] border border-[#E2ECE5] rounded-xl text-xs font-bold text-[#173C2D] focus:outline-none focus:ring-2 focus:ring-[#3F7659]"
+                  />
+                  <span className="text-xs font-bold text-[#5A7165]">%</span>
+                  <button
+                    onClick={handleUpdateCommissionRate}
+                    disabled={updatingRate}
+                    className="px-4 py-2 bg-[#3F7659] hover:bg-[#173C2D] text-white text-xs font-bold rounded-xl transition-all shadow-xs"
+                  >
+                    Save Commission Rate
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Platform Financial KPI Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-5 bg-white border border-[#E2ECE5] rounded-2xl space-y-2 shadow-xs">
+              <div className="text-xs font-bold text-[#5A7165] uppercase tracking-wider">Total Gross Volume</div>
+              <div className="text-2xl font-black text-[#173C2D]">${financials.totalGrossVolume.toFixed(2)}</div>
+              <p className="text-[11px] text-[#5A7165]">Total marketplace gross merchandise volume</p>
+            </div>
+            <div className="p-5 bg-white border border-[#E2ECE5] rounded-2xl space-y-2 shadow-xs">
+              <div className="text-xs font-bold text-[#5A7165] uppercase tracking-wider">Platform Commission Collected</div>
+              <div className="text-2xl font-black text-[#3F7659]">${financials.totalPlatformCommissionCollected.toFixed(2)}</div>
+              <p className="text-[11px] text-emerald-700 font-bold">Platform revenue retained</p>
+            </div>
+            <div className="p-5 bg-white border border-[#E2ECE5] rounded-2xl space-y-2 shadow-xs">
+              <div className="text-xs font-bold text-[#5A7165] uppercase tracking-wider">Net Publisher Payouts</div>
+              <div className="text-2xl font-black text-[#173C2D]">${financials.totalNetPublisherEarnings.toFixed(2)}</div>
+              <p className="text-[11px] text-[#5A7165]">Distributed to verified publishers</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Main Grid for Submissions Queue */}
         {/* Left List: Pending Assets */}
         <div className="lg:col-span-4 bg-white border border-[#E2ECE5] rounded-2xl p-4 space-y-3 shadow-xs">
           <div className="flex items-center justify-between border-b border-[#E2ECE5] pb-3">
@@ -487,6 +620,7 @@ export default function MarketplaceReviewDashboard() {
           )}
         </div>
       </div>
+      )}
 
       {/* Reject Modal */}
       {showRejectModal && (

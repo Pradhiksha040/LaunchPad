@@ -248,6 +248,13 @@ export const governanceService = {
         status: 'VERIFIED',
       },
       {
+        id: 'chk-marketplace-security',
+        category: 'Marketplace & Security',
+        item: 'Marketplace Security Scanning & Trust Layer',
+        description: 'Automated static analyzer pipeline, security gate enforcement, publisher verification, version resets, and review dashboard.',
+        status: 'VERIFIED',
+      },
+      {
         id: 'chk-multi-region',
         category: 'Infrastructure',
         item: 'Multi-Region Replication Architecture',

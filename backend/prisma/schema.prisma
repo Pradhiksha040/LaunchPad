@@ -102,6 +102,10 @@ model Organization {
   publisherProfile Json?
   publisherStatus String       @default("UNVERIFIED") // UNVERIFIED, VERIFIED_PARTNER, ENTERPRISE_VENDOR
   verifiedPublisherAt DateTime?
+  stripeAccountId String?
+  stripeAccountStatus String   @default("PENDING") // PENDING, ACTIVE, RESTRICTED
+  stripeCustomerId String?
+  customCommissionRate Float?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -118,6 +122,10 @@ model Organization {
   tenantDomains           TenantDomain[]
   marketplaceAssets       MarketplaceAsset[]
   marketplaceInstallations MarketplaceInstallation[]
+  buyerTransactions       MarketplaceTransaction[] @relation("BuyerTransactions")
+  publisherTransactions   MarketplaceTransaction[] @relation("PublisherTransactions")
+  marketplaceLicenses     MarketplaceLicense[]
+  marketplacePayouts      MarketplacePayout[]
 
   @@map("organizations")
 }
@@ -542,6 +550,7 @@ model TenantDomain {
   @@map("tenant_domains")
 }
 
+
 model MarketplaceAsset {
   id                 String                    @id @default(uuid())
   name               String
@@ -557,21 +566,25 @@ model MarketplaceAsset {
   tags               Json?
   pricingType        String                    @default("FREE") // FREE, ONE_TIME, SUBSCRIPTION, CUSTOM
   price              Float                     @default(0)
-  status             String                      @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED, PUBLISHED, UNPUBLISHED
-  scanStatus         String                      @default("SCAN_PENDING") // SCAN_PENDING, SCAN_PASSED, WARNINGS_FOUND, SCAN_FAILED, MANUAL_REVIEW, APPROVED
+  stripeProductId    String?
+  stripePriceId      String?
+  status             String                    @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED, PUBLISHED, UNPUBLISHED
+  scanStatus         String                    @default("SCAN_PENDING") // SCAN_PENDING, SCAN_PASSED, WARNINGS_FOUND, SCAN_FAILED, MANUAL_REVIEW, APPROVED
   scannedAt          DateTime?
-  installationsCount Int                         @default(0)
-  visibility         String                      @default("PUBLIC") // PUBLIC, PRIVATE
+  installationsCount Int                       @default(0)
+  visibility         String                    @default("PUBLIC") // PUBLIC, PRIVATE
   requiredModules    Json?
   configuration      Json?
   changelog          String?
   rejectionReason    String?
-  createdAt          DateTime                    @default(now())
-  updatedAt          DateTime                    @updatedAt
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
 
   publisher        Organization                @relation(fields: [publisherId], references: [id], onDelete: Cascade)
   installations    MarketplaceInstallation[]
   securityFindings MarketplaceSecurityFinding[]
+  transactions     MarketplaceTransaction[]
+  licenses         MarketplaceLicense[]
 
   @@index([publisherId])
   @@index([status])
@@ -618,3 +631,81 @@ model MarketplaceSecurityFinding {
   @@map("marketplace_security_findings")
 }
 
+model MarketplaceTransaction {
+  id                      String           @id @default(uuid())
+  assetId                 String
+  buyerOrgId              String
+  publisherOrgId          String
+  amount                  Float
+  platformFee             Float            @default(0)
+  publisherEarnings       Float            @default(0)
+  commissionRate          Float            @default(0.15)
+  currency                String           @default("usd")
+  pricingType             String           @default("ONE_TIME") // ONE_TIME, SUBSCRIPTION
+  status                  String           @default("PENDING") // PENDING, SUCCEEDED, FAILED, REFUNDED
+  stripePaymentIntentId   String?          @unique
+  stripeCheckoutSessionId String?          @unique
+  stripeSubscriptionId    String?
+  idempotencyKey          String           @unique
+  metadata                Json?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  asset        MarketplaceAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  buyerOrg     Organization     @relation("BuyerTransactions", fields: [buyerOrgId], references: [id], onDelete: Cascade)
+  publisherOrg Organization     @relation("PublisherTransactions", fields: [publisherOrgId], references: [id], onDelete: Cascade)
+  licenses     MarketplaceLicense[]
+
+  @@index([buyerOrgId])
+  @@index([publisherOrgId])
+  @@index([assetId])
+  @@index([status])
+  @@map("marketplace_transactions")
+}
+
+model MarketplaceLicense {
+  id            String                  @id @default(uuid())
+  assetId       String
+  organizationId String
+  transactionId String?
+  licenseType   String                  @default("PERPETUAL") // PERPETUAL, SUBSCRIPTION
+  status        String                  @default("ACTIVE") // ACTIVE, EXPIRED, REVOKED
+  expiresAt     DateTime?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  asset        MarketplaceAsset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transaction  MarketplaceTransaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([assetId])
+  @@index([status])
+  @@map("marketplace_licenses")
+}
+
+model MarketplacePayout {
+  id               String       @id @default(uuid())
+  publisherOrgId   String
+  amount           Float
+  currency         String       @default("usd")
+  status           String       @default("PAID") // PENDING, PAID, FAILED
+  stripeTransferId String?      @unique
+  details          String?
+  createdAt        DateTime     @default(now())
+
+  publisherOrg Organization @relation(fields: [publisherOrgId], references: [id], onDelete: Cascade)
+
+  @@index([publisherOrgId])
+  @@map("marketplace_payouts")
+}
+
+model PlatformSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_settings")
+}

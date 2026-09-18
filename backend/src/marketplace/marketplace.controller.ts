@@ -20,10 +20,20 @@ import {
 } from './dto/create-asset.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
+import { MarketplaceBillingService } from './marketplace-billing.service';
+import {
+  CreateCheckoutSessionDto,
+  UpdateCommissionRateDto,
+  OnboardPublisherDto,
+} from './dto/billing.dto';
+
 @ApiTags('Marketplace & Partner Ecosystem')
 @Controller('marketplace')
 export class MarketplaceController {
-  constructor(private readonly marketplaceService: MarketplaceService) {}
+  constructor(
+    private readonly marketplaceService: MarketplaceService,
+    private readonly billingService: MarketplaceBillingService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Public search and filter published marketplace assets' })
@@ -48,6 +58,14 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Register organization as a Marketplace Publisher' })
   async registerPublisher(@Body() dto: RegisterPublisherDto, @Req() req: any) {
     return this.marketplaceService.registerPublisher(dto, req.user);
+  }
+
+  @Post('publisher/stripe-onboard')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate Stripe Connect onboarding link for publisher organization' })
+  async onboardPublisher(@Body() dto: OnboardPublisherDto, @Req() req: any) {
+    return this.billingService.createPublisherOnboardingLink(dto, req.user);
   }
 
   @Post('assets')
@@ -112,6 +130,62 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Unpublish asset from marketplace' })
   async unpublishAsset(@Param('id') id: string, @Req() req: any) {
     return this.marketplaceService.unpublishAsset(id, req.user);
+  }
+
+  @Post('assets/checkout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create Stripe Checkout Session for marketplace asset purchase' })
+  async createCheckoutSession(@Body() dto: CreateCheckoutSessionDto, @Req() req: any) {
+    return this.billingService.createCheckoutSession(dto, req.user);
+  }
+
+  @Post('webhooks/stripe')
+  @ApiOperation({ summary: 'Stripe Webhook Handler for payment confirmation & entitlement' })
+  async handleStripeWebhook(@Body() body: any, @Req() req: any) {
+    const signature = req.headers['stripe-signature'];
+    return this.billingService.handleStripeWebhook(body, signature);
+  }
+
+  @Get('licenses/my-licenses')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get active marketplace licenses held by current tenant organization' })
+  async getMyLicenses(@Req() req: any) {
+    return this.billingService.getMyOrganizationLicenses(req.user);
+  }
+
+  @Get('licenses/check/:assetId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Check if current organization holds active license for asset' })
+  async checkLicense(@Param('assetId') assetId: string, @Req() req: any) {
+    const hasLicense = await this.billingService.hasActiveLicense(assetId, req.user.organizationId);
+    return { assetId, hasLicense };
+  }
+
+  @Get('finance/publisher-earnings')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get publisher financial earnings and transaction settlement history' })
+  async getPublisherEarnings(@Req() req: any) {
+    return this.billingService.getPublisherEarnings(req.user);
+  }
+
+  @Get('finance/platform-overview')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'SuperAdmin platform financial revenue and commission overview' })
+  async getPlatformFinancialOverview(@Req() req: any) {
+    return this.billingService.getPlatformFinancialOverview(req.user);
+  }
+
+  @Patch('finance/commission-rate')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'SuperAdmin update global or organization-specific platform commission rate' })
+  async updateCommissionRate(@Body() dto: UpdateCommissionRateDto, @Req() req: any) {
+    return this.billingService.updatePlatformCommissionRate(dto, req.user);
   }
 
   @Post('assets/:id/install')

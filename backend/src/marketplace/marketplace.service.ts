@@ -421,6 +421,21 @@ export class MarketplaceService {
       throw new NotFoundException(`Marketplace asset '${id}' not found.`);
     }
 
+    // License & Entitlement Check for paid assets
+    if (asset.pricingType !== 'FREE' && asset.publisherId !== currentUser.organizationId) {
+      const activeLicense = await this.prisma.marketplaceLicense.findFirst({
+        where: {
+          assetId: asset.id,
+          organizationId: currentUser.organizationId,
+          status: 'ACTIVE',
+        },
+      });
+
+      if (!activeLicense) {
+        throw new BadRequestException(`Asset '${asset.name}' requires an active purchase license before installation. Please complete payment checkout first.`);
+      }
+    }
+
     let installedAppId: string | null = null;
 
     // If installing an APPLICATION type asset, create a new Application for the organization
