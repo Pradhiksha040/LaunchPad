@@ -1,6 +1,7 @@
 import React from 'react';
 import { Sidebar } from '@/components/navigation/Sidebar';
 import { Navbar } from '@/components/navigation/Navbar';
+import { LaunchPadAssistantWidget } from '@/components/chat/LaunchPadAssistantWidget';
 
 export default function DashboardLayout({
   children,
@@ -8,7 +9,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen bg-[#F3F9F5] overflow-hidden">
+    <div className="flex h-screen bg-[#F3F9F5] overflow-hidden relative">
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Navbar />
@@ -16,6 +17,7 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+      <LaunchPadAssistantWidget />
     </div>
   );
 }

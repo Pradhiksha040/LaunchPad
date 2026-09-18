@@ -55,6 +55,7 @@ export function Sidebar() {
       title: 'Overview',
       items: [
         { name: 'Control Center', href: '/dashboard', icon: LayoutDashboard },
+        { name: 'AI Assistant', href: '/assistant', icon: Sparkles, badge: 'AI' },
       ],
     },
     {

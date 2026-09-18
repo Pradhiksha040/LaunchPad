@@ -17,6 +17,7 @@ import { AiGeneratorModule } from './ai-generator/ai-generator.module';
 import { GovernanceModule } from './governance/governance.module';
 import { DomainsModule } from './domains/domains.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
+import { ChatModule } from './chat/chat.module';
 
 import { AppController } from './app.controller';
 
@@ -40,6 +41,7 @@ import { AppController } from './app.controller';
     GovernanceModule,
     DomainsModule,
     MarketplaceModule,
+    ChatModule,
   ],
   controllers: [AppController],
 })

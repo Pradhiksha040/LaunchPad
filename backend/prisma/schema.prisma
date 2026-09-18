@@ -126,6 +126,7 @@ model Organization {
   publisherTransactions   MarketplaceTransaction[] @relation("PublisherTransactions")
   marketplaceLicenses     MarketplaceLicense[]
   marketplacePayouts      MarketplacePayout[]
+  chatConversations       ChatConversation[]
 
   @@map("organizations")
 }
@@ -145,6 +146,7 @@ model User {
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   auditLogs      AuditLog[]
+  chatConversations ChatConversation[]
 
   @@map("users")
 }
@@ -222,6 +224,7 @@ model Application {
   apiUsageLogs       ApiUsageLog[]
   tenantDomains      TenantDomain[]
   marketplaceInstallations MarketplaceInstallation[]
+  chatConversations  ChatConversation[]
 
   @@unique([organizationId, slug])
   @@map("applications")
@@ -708,4 +711,38 @@ model PlatformSetting {
   updatedAt DateTime @updatedAt
 
   @@map("platform_settings")
+}
+
+model ChatConversation {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  applicationId  String?
+  title          String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application  Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  messages     ChatMessage[]
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([applicationId])
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id             String           @id @default(uuid())
+  conversationId String
+  role           String           // user, assistant, system
+  content        String
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("chat_messages")
 }
