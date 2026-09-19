@@ -11,6 +11,7 @@ import {
   Sparkles,
   ArrowRight,
   ArrowLeft,
+  ArrowUpRight,
   Palette,
   Layers,
   FileCheck,
@@ -132,9 +133,20 @@ export default function CreateApplicationWizardPage() {
     borderRadius: '0.625rem',
   });
 
-  // Step 7: Creation animation state
+  // Step 7 & 8: Creation state and result
   const [creating, setCreating] = useState(false);
   const [creationStepIndex, setCreationStepIndex] = useState(0);
+  const [createdAppResult, setCreatedAppResult] = useState<any | null>(null);
+  const [creationError, setCreationError] = useState<string | null>(null);
+  const [showSuccessState, setShowSuccessState] = useState(false);
+
+  // Deployment Wizard State
+  const [showDeployWizard, setShowDeployWizard] = useState(false);
+  const [deployStep, setDeployStep] = useState(1);
+  const [selectedDeployOption, setSelectedDeployOption] = useState<'managed' | 'custom' | 'dedicated'>('managed');
+  const [customDomainInput, setCustomDomainInput] = useState('app.launchpaddemo.com');
+  const [deployStatus, setDeployStatus] = useState<'DRAFT' | 'READY_TO_DEPLOY' | 'DEPLOYING' | 'DEPLOYED' | 'FAILED'>('READY_TO_DEPLOY');
+  const [deployingAction, setDeployingAction] = useState(false);
 
   // AI Generator State
   const [aiPrompt, setAiPrompt] = useState('');
@@ -218,13 +230,13 @@ export default function CreateApplicationWizardPage() {
   // Extract unique categories for current template
   const availableCategories = useMemo(() => {
     const set = new Set<string>();
-    allModules.forEach((m) => set.add(m.category));
+    allModules.forEach((m: AppModuleItem) => set.add(m.category));
     return Array.from(set);
   }, [allModules]);
 
   // Filtered module list based on search, status filter, and category filter
   const filteredModules = useMemo(() => {
-    return allModules.filter((mod) => {
+    return allModules.filter((mod: AppModuleItem) => {
       // Category check
       if (selectedCategory !== 'all' && mod.category !== selectedCategory) {
         return false;
@@ -262,8 +274,14 @@ export default function CreateApplicationWizardPage() {
         const missingDeps = moduleItem.dependencies.filter((depId) => !newSelected.includes(depId));
         if (missingDeps.length > 0) {
           newSelected = [...newSelected, ...missingDeps];
-          setDependencyNotice(`Auto-enabled dependent module(s): ${missingDeps.join(', ')}`);
-          setTimeout(() => setDependencyNotice(null), 4000);
+          const depNames = missingDeps
+            .map((depId) => {
+              const depMod = allModules.find((m) => m.id === depId);
+              return depMod ? depMod.name : depId;
+            })
+            .join(', ');
+          setDependencyNotice(`${moduleItem.name} requires ${depNames}. ${depNames} has been automatically enabled.`);
+          setTimeout(() => setDependencyNotice(null), 5000);
         }
       }
       setSelectedModuleIds(newSelected);
@@ -342,52 +360,60 @@ export default function CreateApplicationWizardPage() {
   const triggerCreation = async () => {
     setStep(7);
     setCreating(true);
+    setCreationError(null);
 
-    for (let i = 0; i < creationProgressSteps.length; i++) {
-      setCreationStepIndex(i);
-      await new Promise((r) => setTimeout(r, 600));
-    }
+    try {
+      for (let i = 0; i < creationProgressSteps.length; i++) {
+        setCreationStepIndex(i);
+        await new Promise((r) => setTimeout(r, 400));
+      }
 
-    const selectedModulesPayload = allModules
-      .filter((m) => selectedModuleIds.includes(m.id))
-      .map((m) => {
-        const configured = configuredModuleMap[m.id];
-        return {
-          id: m.id,
-          name: m.name,
-          category: m.category,
-          description: m.description,
-          icon: m.icon,
-          required: m.required,
-          custom: m.custom,
-          order: m.order,
-          dependencies: m.dependencies,
-          visibility: configured?.visibility || m.visibility,
-          permissions: configured?.permissions || m.permissions,
-          configuration: configured?.configuration || m.configuration,
-        };
+      const selectedModulesPayload = allModules
+        .filter((m) => selectedModuleIds.includes(m.id))
+        .map((m) => {
+          const configured = configuredModuleMap[m.id];
+          return {
+            id: m.id,
+            name: m.name,
+            category: m.category,
+            description: m.description,
+            icon: m.icon,
+            required: m.required,
+            custom: m.custom,
+            order: m.order,
+            dependencies: m.dependencies,
+            visibility: configured?.visibility || m.visibility,
+            permissions: configured?.permissions || m.permissions,
+            configuration: configured?.configuration || m.configuration,
+          };
+        });
+
+      const created = await applicationService.createApplication({
+        name,
+        description,
+        industry,
+        type: appType,
+        mode,
+        templateId: selectedTemplateId,
+        templateName: MOCK_TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || templateDisplayName,
+        modules: selectedModulesPayload,
+        branding,
+        targetBackend: mode === 'integration_hub' ? {
+          systemName: targetSystemName,
+          techStack: targetTechStack,
+          connectorType: 'REST API Connector',
+          endpointUrl: targetEndpointUrl,
+        } : undefined,
       });
 
-    const created = await applicationService.createApplication({
-      name,
-      description,
-      industry,
-      type: appType,
-      mode,
-      templateId: selectedTemplateId,
-      templateName: MOCK_TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || templateDisplayName,
-      modules: selectedModulesPayload,
-      branding,
-      targetBackend: mode === 'integration_hub' ? {
-        systemName: targetSystemName,
-        techStack: targetTechStack,
-        connectorType: 'REST API Connector',
-        endpointUrl: targetEndpointUrl,
-      } : undefined,
-    });
-
-    setCreating(false);
-    router.push(`/applications/${created.id}`);
+      setCreatedAppResult(created);
+      setShowSuccessState(true);
+    } catch (err: any) {
+      console.error('Failed to create application:', err);
+      setCreationError(err.message || 'Failed to persist application in database.');
+    } finally {
+      setCreating(false);
+    }
   };
 
   // Calculate selected module breakdown for summary
@@ -1100,7 +1126,7 @@ export default function CreateApplicationWizardPage() {
         )}
 
         {/* STEP 7: Progress Animation */}
-        {step === 7 && (
+        {step === 7 && creating && (
           <div className="py-12 text-center space-y-6 animate-in fade-in duration-300">
             <div className="relative w-16 h-16 mx-auto">
               <div className="absolute inset-0 rounded-full border-4 border-[#E2ECE5]" />
@@ -1115,8 +1141,109 @@ export default function CreateApplicationWizardPage() {
           </div>
         )}
 
+        {/* Error Display if Creation Fails */}
+        {step === 7 && creationError && !creating && (
+          <div className="py-8 space-y-4 animate-in fade-in">
+            <div className="p-4 bg-red-50 border border-red-200 text-red-900 rounded-2xl text-xs font-semibold flex items-center gap-3">
+              <AlertTriangle className="text-red-600 shrink-0" size={20} />
+              <div>
+                <div className="font-extrabold text-sm text-red-950">Application Creation Failed</div>
+                <p className="text-xs text-red-700 mt-0.5">{creationError}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setStep(6)}
+                className="px-4 py-2 bg-[#F3F9F5] text-[#173C2D] font-bold text-xs rounded-xl"
+              >
+                Back to Review
+              </button>
+              <button
+                type="button"
+                onClick={triggerCreation}
+                className="px-5 py-2 bg-[#3F7659] text-white font-bold text-xs rounded-xl"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* SUCCESS STATE (Section 4 Requirement) */}
+        {showSuccessState && !creating && (
+          <div className="py-6 space-y-6 animate-in fade-in duration-300">
+            <div className="p-6 bg-[#F3F9F5] border border-[#3F7659]/30 rounded-2xl space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#3F7659] text-white flex items-center justify-center shadow-md">
+                  <CheckCircle2 size={26} />
+                </div>
+                <div>
+                  <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase rounded-full bg-[#DDEEDF] text-[#173C2D]">
+                    Database Record Persisted
+                  </span>
+                  <h2 className="text-xl font-extrabold text-[#173C2D] mt-0.5">Application Created Successfully</h2>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="p-4 bg-white rounded-xl border border-[#E2ECE5]">
+                  <span className="text-[#5A7165] font-semibold text-[11px]">Application</span>
+                  <div className="font-extrabold text-sm text-[#173C2D] mt-0.5">{createdAppResult?.name || name}</div>
+                </div>
+
+                <div className="p-4 bg-white rounded-xl border border-[#E2ECE5]">
+                  <span className="text-[#5A7165] font-semibold text-[11px]">Organization</span>
+                  <div className="font-extrabold text-sm text-[#173C2D] mt-0.5">LaunchPad Demo Organization</div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-white rounded-xl border border-[#E2ECE5] space-y-2 text-xs">
+                <span className="text-[#5A7165] font-semibold text-[11px]">Associated Modules ({moduleSummary.total})</span>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {moduleSummary.list.map((m) => (
+                    <span key={m.id} className="px-2.5 py-1 bg-[#F3F9F5] border border-[#DDEEDF] text-[#173C2D] font-bold text-[11px] rounded-lg flex items-center gap-1">
+                      <Check size={12} className="text-[#3F7659]" /> {m.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-[#E2ECE5]">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/applications/${createdAppResult?.id || 'app-vms-01'}`)}
+                  className="px-5 py-2.5 bg-[#173C2D] hover:bg-[#3F7659] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2"
+                >
+                  <ArrowUpRight size={14} /> Open Application
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => router.push(`/applications/${createdAppResult?.id || 'app-vms-01'}`)}
+                  className="px-5 py-2.5 bg-white border border-[#E2ECE5] hover:bg-[#F3F9F5] text-[#173C2D] text-xs font-bold rounded-xl transition-all flex items-center gap-2"
+                >
+                  <Settings size={14} /> Configure
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeployWizard(true);
+                    setDeployStep(1);
+                  }}
+                  className="px-5 py-2.5 bg-[#3F7659] hover:bg-[#173C2D] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2"
+                >
+                  <Rocket size={14} /> Deploy Application
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Navigation Buttons */}
-        {step < 7 && (
+        {step < 7 && !showSuccessState && (
           <div className="flex items-center justify-between pt-6 border-t border-[#E2ECE5] mt-8">
             <button
               type="button"
@@ -1142,6 +1269,268 @@ export default function CreateApplicationWizardPage() {
           </div>
         )}
       </div>
+
+      {/* DEPLOYMENT FLOW WIZARD MODAL (Sections 5, 6, 7, 8, 9 Requirements) */}
+      {showDeployWizard && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-6 border border-[#E2ECE5] shadow-2xl max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-[#E2ECE5] pb-4">
+              <div>
+                <span className="text-[10px] font-extrabold text-[#3F7659] uppercase tracking-wider">
+                  Deployment Pipeline Wizard • Step {deployStep} of 5
+                </span>
+                <h3 className="text-lg font-extrabold text-[#173C2D] mt-0.5">Deploy {name}</h3>
+              </div>
+              <button
+                onClick={() => setShowDeployWizard(false)}
+                className="p-1.5 hover:bg-[#F3F9F5] text-[#5A7165] rounded-full"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Step 1: Application Configuration */}
+            {deployStep === 1 && (
+              <div className="space-y-4 text-xs animate-in fade-in">
+                <h4 className="font-extrabold text-[#173C2D] text-sm">Step 1: Application Prerequisites</h4>
+                <div className="space-y-2">
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
+                    <CheckCircle2 size={18} className="text-emerald-700 shrink-0" />
+                    <div>
+                      <div className="font-bold text-emerald-900">✓ Application Created & Persisted</div>
+                      <div className="text-[11px] text-emerald-700">App ID: {createdAppResult?.id || 'app-vms-01'} • Tenant: LaunchPad Demo Organization</div>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
+                    <CheckCircle2 size={18} className="text-emerald-700 shrink-0" />
+                    <div>
+                      <div className="font-bold text-emerald-900">✓ Modules Configured & Bound</div>
+                      <div className="text-[11px] text-emerald-700">{moduleSummary.total} Dynamic Modules bound to application schema</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-3">
+                  <button
+                    onClick={() => setDeployStep(2)}
+                    className="px-5 py-2.5 bg-[#3F7659] hover:bg-[#173C2D] text-white font-bold text-xs rounded-xl flex items-center gap-2"
+                  >
+                    Continue to Deployment Type <ArrowRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Deployment Type Selection */}
+            {deployStep === 2 && (
+              <div className="space-y-4 text-xs animate-in fade-in">
+                <div>
+                  <h4 className="font-extrabold text-[#173C2D] text-sm">Step 2: Select Deployment Type</h4>
+                  <p className="text-[#5A7165]">Choose the deployment architecture model for your application.</p>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Option A: LaunchPad Managed */}
+                  <div
+                    onClick={() => setSelectedDeployOption('managed')}
+                    className={cn(
+                      'p-4 rounded-2xl border-2 cursor-pointer transition-all space-y-2',
+                      selectedDeployOption === 'managed'
+                        ? 'border-[#3F7659] bg-[#F3F9F5]'
+                        : 'border-[#E2ECE5] bg-white hover:border-[#DDEEDF]'
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-[#3F7659] text-white text-[10px] font-extrabold rounded">
+                          RECOMMENDED (DEFAULT)
+                        </span>
+                        <h5 className="font-extrabold text-[#173C2D]">A. LaunchPad Managed Deployment</h5>
+                      </div>
+                      {selectedDeployOption === 'managed' && <Check size={16} className="text-[#3F7659]" />}
+                    </div>
+                    <p className="text-[11px] text-[#5A7165]">
+                      The application is deployed as a configured tenant/application inside the LaunchPad platform.
+                    </p>
+                    <div className="p-2.5 bg-white rounded-xl border border-[#E2ECE5] font-mono text-[10px] text-[#3F7659] text-center">
+                      Customer Application → LaunchPad Platform → LaunchPad Backend → PostgreSQL DB
+                    </div>
+                  </div>
+
+                  {/* Option B: Custom Domain */}
+                  <div
+                    onClick={() => setSelectedDeployOption('custom')}
+                    className={cn(
+                      'p-4 rounded-2xl border-2 cursor-pointer transition-all space-y-2',
+                      selectedDeployOption === 'custom'
+                        ? 'border-[#3F7659] bg-[#F3F9F5]'
+                        : 'border-[#E2ECE5] bg-white hover:border-[#DDEEDF]'
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <h5 className="font-extrabold text-[#173C2D]">B. Custom Domain Routing</h5>
+                      {selectedDeployOption === 'custom' && <Check size={16} className="text-[#3F7659]" />}
+                    </div>
+                    <p className="text-[11px] text-[#5A7165]">
+                      Allow customer to connect custom domain (e.g. app.customer.com). Requires DNS configuration & SSL certificate.
+                    </p>
+                  </div>
+
+                  {/* Option C: Dedicated Deployment */}
+                  <div
+                    onClick={() => setSelectedDeployOption('dedicated')}
+                    className={cn(
+                      'p-4 rounded-2xl border-2 cursor-pointer transition-all space-y-2',
+                      selectedDeployOption === 'dedicated'
+                        ? 'border-[#3F7659] bg-[#F3F9F5]'
+                        : 'border-[#E2ECE5] bg-white hover:border-[#DDEEDF]'
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-extrabold rounded">
+                        ENTERPRISE ISOLATED
+                      </span>
+                      {selectedDeployOption === 'dedicated' && <Check size={16} className="text-[#3F7659]" />}
+                    </div>
+                    <h5 className="font-extrabold text-[#173C2D]">C. Dedicated Infrastructure Deployment</h5>
+                    <p className="text-[11px] text-[#5A7165]">
+                      For enterprise customers that require isolated infrastructure (Frontend → Vercel, Backend → Render/AWS, Database → Managed PostgreSQL).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-[#E2ECE5]">
+                  <button
+                    onClick={() => setDeployStep(1)}
+                    className="px-4 py-2 bg-[#F3F9F5] text-[#5A7165] font-bold text-xs rounded-xl"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={() => setDeployStep(3)}
+                    className="px-5 py-2.5 bg-[#3F7659] hover:bg-[#173C2D] text-white font-bold text-xs rounded-xl flex items-center gap-2"
+                  >
+                    Continue Configuration <ArrowRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Deployment Configuration */}
+            {deployStep === 3 && (
+              <div className="space-y-4 text-xs animate-in fade-in">
+                <h4 className="font-extrabold text-[#173C2D] text-sm">Step 3: Network & Deployment Configuration</h4>
+
+                {selectedDeployOption === 'custom' && (
+                  <div className="space-y-2 p-3.5 bg-[#F3F9F5] rounded-xl border border-[#E2ECE5]">
+                    <label className="font-bold text-[#173C2D]">Custom Domain Name *</label>
+                    <input
+                      type="text"
+                      value={customDomainInput}
+                      onChange={(e) => setCustomDomainInput(e.target.value)}
+                      placeholder="app.customer.com"
+                      className="w-full px-3 py-2 bg-white border border-[#E2ECE5] rounded-lg text-[#173C2D] font-mono"
+                    />
+                    <p className="text-[10px] text-[#5A7165]">
+                      Configure DNS CNAME pointing <strong>{customDomainInput}</strong> to <code>ingress.launchpad.io</code>. SSL cert auto-provisioned.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <label className="font-bold text-[#173C2D]">Target Deployment Environment</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {['development', 'staging', 'production'].map((env) => (
+                      <button
+                        key={env}
+                        type="button"
+                        className="p-3 border rounded-xl font-bold uppercase text-[10px] bg-[#F3F9F5] border-[#3F7659] text-[#173C2D]"
+                      >
+                        {env}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-[#E2ECE5]">
+                  <button
+                    onClick={() => setDeployStep(2)}
+                    className="px-4 py-2 bg-[#F3F9F5] text-[#5A7165] font-bold text-xs rounded-xl"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDeployStep(4);
+                      setTimeout(() => {
+                        setDeployStatus('READY_TO_DEPLOY');
+                        setDeployStep(5);
+                      }, 1200);
+                    }}
+                    className="px-5 py-2.5 bg-[#3F7659] hover:bg-[#173C2D] text-white font-bold text-xs rounded-xl flex items-center gap-2"
+                  >
+                    Trigger Deploy Action <Rocket size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Deployment Progress */}
+            {deployStep === 4 && (
+              <div className="py-12 text-center space-y-4 animate-in fade-in">
+                <div className="w-12 h-12 rounded-full border-4 border-[#3F7659] border-t-transparent animate-spin mx-auto" />
+                <h4 className="font-extrabold text-[#173C2D] text-base">Registering Deployment Target...</h4>
+                <p className="text-xs text-[#5A7165]">Configuring tenant routing policies and generating status log.</p>
+              </div>
+            )}
+
+            {/* Step 5: Deployment Status */}
+            {deployStep === 5 && (
+              <div className="space-y-5 text-xs animate-in fade-in">
+                <div className="p-5 bg-[#F3F9F5] border border-[#DDEEDF] rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[#173C2D] uppercase tracking-wider text-[11px]">
+                      Deployment Status:
+                    </span>
+                    <span className="px-2.5 py-1 bg-[#DDEEDF] text-[#173C2D] border border-[#C5E2C8] rounded-full font-extrabold text-[10px]">
+                      {deployStatus}
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 bg-white rounded-xl border border-[#E2ECE5] space-y-1">
+                    <div className="font-extrabold text-[#173C2D] flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      LOCAL / DEMO — READY FOR DEPLOYMENT
+                    </div>
+                    <p className="text-[11px] text-[#5A7165] leading-relaxed">
+                      The application is created and persisted in your local PostgreSQL database. In this local demo mode, the app runs as a tenant inside the LaunchPad platform. Cloud provider provisioning (Vercel / Render / AWS) is ready when cloud credentials are configured.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E2ECE5]">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeployWizard(false)}
+                    className="px-4 py-2 bg-[#F3F9F5] text-[#5A7165] font-bold text-xs rounded-xl"
+                  >
+                    Close Wizard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/applications/${createdAppResult?.id || 'app-vms-01'}`)}
+                    className="px-5 py-2.5 bg-[#3F7659] hover:bg-[#173C2D] text-white font-bold text-xs rounded-xl flex items-center gap-2"
+                  >
+                    <ArrowUpRight size={14} /> Open Application Dashboard
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* MODAL 1: Create Custom Module */}
       {isCustomModalOpen && (

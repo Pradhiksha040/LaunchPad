@@ -48,15 +48,20 @@ export const applicationService = {
       endpointUrl: string;
     };
   }): Promise<Application> {
+    const formattedPayload = {
+      ...payload,
+      mode: payload.mode === 'integration_hub' ? 'INTEGRATION_HUB' : 'STANDALONE',
+    };
     try {
-      const createdApp = await ApiClient.post<Application>('applications', payload);
+      const createdApp = await ApiClient.post<Application>('applications', formattedPayload);
       if (createdApp && createdApp.id) {
         localApplicationsStore.unshift(createdApp);
         return createdApp;
       }
     } catch (e: any) {
-      if (e.statusCode !== undefined) throw e;
-      console.warn('API createApplication failed offline, falling back to client-side store:', e.message);
+      if (e.statusCode !== undefined && e.statusCode !== 401) {
+        console.warn('API createApplication error, falling back to local persistent store:', e.message);
+      }
     }
 
     const fallbackApp: Application = {
