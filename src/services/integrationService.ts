@@ -10,20 +10,20 @@ export const integrationService = {
     try {
       const query = applicationId ? `?applicationId=${applicationId}` : '';
       const realData = await ApiClient.get<any[]>(`/integrations${query}`);
-      if (Array.isArray(realData) && realData.length > 0) {
+      if (Array.isArray(realData)) {
         return realData.map((item) => ({
           id: item.id,
           name: item.name,
           type: item.type === 'REST_GENERIC' ? 'rest_api' : item.type.toLowerCase(),
           category: item.category || 'Custom',
-          status: item.status === 'active' ? 'connected' : 'error',
+          status: item.status?.toLowerCase() === 'active' ? 'connected' : 'error',
           targetSystem: item.targetSystem || 'External Customer API',
           targetTech: item.targetTech || 'REST',
           authType: item.authType === 'API_KEY' ? 'API Key' : item.authType === 'BEARER_TOKEN' ? 'Bearer Token' : 'JWT',
           baseUrl: item.baseUrl,
           lastSync: item.lastTestedAt ? new Date(item.lastTestedAt).toLocaleTimeString() : 'Not tested yet',
           latencyMs: 45,
-          successRate: item.status === 'active' ? 100 : 0,
+          successRate: item.status?.toLowerCase() === 'active' ? 100 : 0,
         }));
       }
     } catch {
@@ -130,8 +130,18 @@ export const integrationService = {
   }): Promise<Connector> {
     try {
       const authTypeEnum = payload.authType.toUpperCase().replace(/\s+/g, '_');
+      let targetAppId = payload.applicationId;
+      if (!targetAppId || targetAppId === 'app-vms-01') {
+        try {
+          const apps = await ApiClient.get<any[]>('applications');
+          if (Array.isArray(apps) && apps.length > 0) {
+            targetAppId = apps[0].id;
+          }
+        } catch {}
+      }
+
       const created = await ApiClient.post<any>('/integrations', {
-        applicationId: payload.applicationId || 'app-vms-01',
+        applicationId: targetAppId || 'app-vms-01',
         name: payload.name,
         type: payload.type || 'REST_GENERIC',
         baseUrl: payload.baseUrl,
@@ -143,7 +153,7 @@ export const integrationService = {
         },
       });
 
-      return {
+      const newConnector: Connector = {
         id: created.id,
         name: created.name,
         type: 'rest_api',
@@ -157,7 +167,10 @@ export const integrationService = {
         latencyMs: 45,
         successRate: 100,
       };
-    } catch (err) {
+      fallbackConnectorsStore.unshift(newConnector);
+      return newConnector;
+    } catch (err: any) {
+      if (err.statusCode !== undefined) throw err;
       // Fallback local creation
       const newConnector: Connector = {
         id: `conn-${Date.now().toString(36)}`,

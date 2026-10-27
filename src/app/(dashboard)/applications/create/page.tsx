@@ -95,6 +95,21 @@ export default function CreateApplicationWizardPage() {
 
   // Step 3: Template State
   const [selectedTemplateId, setSelectedTemplateId] = useState('template-vms-01');
+  const [templates, setTemplates] = useState<any[]>(MOCK_TEMPLATES);
+
+  useEffect(() => {
+    async function loadLiveTemplates() {
+      try {
+        const live = await templateService.getTemplates();
+        if (Array.isArray(live) && live.length > 0) {
+          setTemplates(live);
+        }
+      } catch {
+        // Fallback already populated
+      }
+    }
+    loadLiveTemplates();
+  }, []);
 
   // Step 4: DYNAMIC MODULE SYSTEM STATE
   const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>([]);
@@ -409,7 +424,7 @@ export default function CreateApplicationWizardPage() {
         type: appType,
         mode,
         templateId: selectedTemplateId,
-        templateName: MOCK_TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || templateDisplayName,
+        templateName: templates.find((t) => t.id === selectedTemplateId)?.name || templateDisplayName,
         modules: selectedModulesPayload,
         branding,
         targetBackend: mode === 'integration_hub' ? {
@@ -726,7 +741,7 @@ export default function CreateApplicationWizardPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {MOCK_TEMPLATES.map((tpl) => (
+              {templates.map((tpl) => (
                 <div
                   key={tpl.id}
                   onClick={() => setSelectedTemplateId(tpl.id)}

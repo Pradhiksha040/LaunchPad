@@ -105,5 +105,29 @@ export const userService = {
     }
     return [...orgsStore];
   },
+
+  async createOrganization(payload: {
+    name: string;
+    industry?: string;
+    domain?: string;
+    plan?: string;
+  }): Promise<Organization> {
+    const created = await ApiClient.post<any>('organizations', payload);
+    const newOrg: Organization = {
+      id: created.id,
+      name: created.name,
+      slug: created.slug,
+      industry: created.industry || 'Enterprise Software',
+      domain: created.domain || `${created.slug}.com`,
+      plan: created.plan || 'Enterprise',
+      status: created.status || 'active',
+      applicationsCount: 0,
+      usersCount: 1,
+      createdAt: created.createdAt || new Date().toISOString(),
+      updatedAt: created.updatedAt || new Date().toISOString(),
+    };
+    orgsStore.unshift(newOrg);
+    return newOrg;
+  },
 };
 

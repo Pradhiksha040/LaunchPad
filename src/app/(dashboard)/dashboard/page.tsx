@@ -17,7 +17,8 @@ import {
   ExternalLink,
   ShieldAlert,
   Clock,
-  ChevronRight
+  ChevronRight,
+  RefreshCw
 } from 'lucide-react';
 import {
   AreaChart,
@@ -45,6 +46,8 @@ const CHART_DATA = [
 
 import { userService } from '@/services/userService';
 import { auditService } from '@/services/auditService';
+import { analyticsService } from '@/services/analyticsService';
+import { authService } from '@/services/authService';
 
 export default function DashboardPage() {
   const [apps, setApps] = useState<Application[]>([]);
@@ -52,30 +55,55 @@ export default function DashboardPage() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [usersCount, setUsersCount] = useState<number>(0);
   const [orgsCount, setOrgsCount] = useState<number>(0);
+  const [overview, setOverview] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
-      const [appsData, connectorsData, logsData, usersData, orgsData] = await Promise.all([
-        applicationService.getApplications(),
-        integrationService.getConnectors(),
-        auditService.getAuditLogs(),
-        userService.getUsers(),
-        userService.getOrganizations(),
-      ]);
-      setApps(appsData);
-      setConnectors(connectorsData);
-      setAuditLogs(logsData);
-      setUsersCount(usersData.length);
-      setOrgsCount(orgsData.length);
-      setLoading(false);
+      setLoading(true);
+      try {
+        const [appsData, connectorsData, logsData, usersData, orgsData, overviewData, meData] = await Promise.all([
+          applicationService.getApplications(),
+          integrationService.getConnectors(),
+          auditService.getAuditLogs(),
+          userService.getUsers(),
+          userService.getOrganizations(),
+          analyticsService.getOverview(),
+          authService.getMe(),
+        ]);
+        setApps(appsData);
+        setConnectors(connectorsData);
+        setAuditLogs(logsData);
+        setUsersCount(usersData.length);
+        setOrgsCount(orgsData.length);
+        setOverview(overviewData);
+        if (meData) setCurrentUser(meData);
+      } catch (err) {
+        console.error('Failed to load dashboard data:', err);
+      } finally {
+        setLoading(false);
+      }
     }
     loadData();
   }, []);
 
-  const standaloneCount = apps.filter((a) => (a.mode as string) === 'standalone').length;
-  const hubCount = apps.filter((a) => (a.mode as string) === 'integration_hub' || (a.mode as string) === 'integration-hub').length;
+  const standaloneCount = apps.filter((a) => (a.mode as string)?.toLowerCase() === 'standalone').length;
+  const hubCount = apps.filter((a) => {
+    const m = (a.mode as string)?.toLowerCase();
+    return m === 'integration_hub' || m === 'integration-hub';
+  }).length;
   const totalModulesCount = apps.reduce((acc, app) => acc + (app.modules ? app.modules.length : 0), 0);
+
+  const chartData = (overview?.trafficTimeSeries && overview.trafficTimeSeries.length > 0)
+    ? overview.trafficTimeSeries.map((t: any) => ({
+        time: t.day,
+        requests: (t.standalone || 0) + (t.hub || 0),
+        standalone: t.standalone || 0,
+        hub: t.hub || 0,
+        workflowRuns: t.workflowRuns || 0,
+      }))
+    : CHART_DATA;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -87,7 +115,7 @@ export default function DashboardPage() {
               <Sparkles size={14} className="text-[#DDEEDF]" /> LaunchPad Control Center v2.4
             </div>
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              Good morning, Admin
+              Good morning, {currentUser?.name || 'Admin'}
             </h1>
             <p className="text-xs md:text-sm text-[#DDEEDF] max-w-2xl leading-relaxed">
               Your enterprise application ecosystem is operating smoothly. Managing {apps.length} business applications across Standalone and Integration Hub modes.
@@ -290,7 +318,22 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {apps.map((app) => (
+          {loading ? (
+            <div className="col-span-full p-8 text-center bg-white border border-[#E2ECE5] rounded-xl text-[#5A7165]">
+              <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-[#3F7659]" />
+              <p className="text-xs font-semibold">Loading real-time application ecosystem...</p>
+            </div>
+          ) : apps.length === 0 ? (
+            <div className="col-span-full p-8 text-center bg-white border border-[#E2ECE5] rounded-xl space-y-3">
+              <Boxes className="mx-auto text-[#5A7165]" size={32} />
+              <h3 className="font-bold text-[#173C2D]">No Applications Deployed Yet</h3>
+              <p className="text-xs text-[#5A7165]">Get started by creating your first standalone modular application or integration hub connector.</p>
+              <Link href="/applications/create" className="inline-flex items-center gap-2 px-4 py-2 bg-[#3F7659] text-white font-bold text-xs rounded-xl shadow-xs">
+                <Plus size={14} /> Create Application
+              </Link>
+            </div>
+          ) : (
+            apps.map((app) => (
             <div
               key={app.id}
               className="group p-5 bg-white border border-[#E2ECE5] hover:border-[#3F7659] rounded-xl shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
@@ -372,7 +415,7 @@ export default function DashboardPage() {
                 </Link>
               </div>
             </div>
-          ))}
+          )))}
         </div>
       </div>
 
@@ -396,7 +439,7 @@ export default function DashboardPage() {
 
           <div className="h-64 w-full pt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={CHART_DATA}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3F7659" stopOpacity={0.4} />

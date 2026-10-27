@@ -20,27 +20,47 @@ import {
 import { applicationService } from '@/services/applicationService';
 import { Application, AppMode } from '@/types';
 import { cn, formatDate } from '@/lib/utils';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
 
 export default function ApplicationsPage() {
   const [apps, setApps] = useState<Application[]>([]);
   const [filterMode, setFilterMode] = useState<'all' | AppMode>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchApps() {
+  const fetchApps = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
       const data = await applicationService.getApplications();
       setApps(data);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to fetch applications.');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchApps();
   }, []);
 
+  const standaloneCount = apps.filter((a) => (a.mode as string)?.toLowerCase() === 'standalone').length;
+  const hubCount = apps.filter((a) => {
+    const m = (a.mode as string)?.toLowerCase();
+    return m === 'integration_hub' || m === 'integration-hub';
+  }).length;
+
   const filteredApps = apps.filter((app) => {
-    const matchesMode = filterMode === 'all' || app.mode === filterMode;
+    const appMode = (app.mode as string)?.toLowerCase();
+    const filter = filterMode.toLowerCase();
+    const matchesMode = filterMode === 'all' || appMode === filter;
     const matchesSearch =
-      app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.industry.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.description.toLowerCase().includes(searchQuery.toLowerCase());
+      (app.name && app.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (app.industry && app.industry.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (app.description && app.description.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesMode && matchesSearch;
   });
 
@@ -97,7 +117,7 @@ export default function ApplicationsPage() {
                 filterMode === 'standalone' ? 'bg-[#3F7659] text-white' : 'text-[#5A7165]'
               )}
             >
-              Standalone
+              Standalone ({standaloneCount})
             </button>
             <button
               onClick={() => setFilterMode('integration_hub')}
@@ -106,7 +126,7 @@ export default function ApplicationsPage() {
                 filterMode === 'integration_hub' ? 'bg-[#173C2D] text-white' : 'text-[#5A7165]'
               )}
             >
-              Integration Hub
+              Integration Hub ({hubCount})
             </button>
           </div>
         </div>
@@ -135,8 +155,31 @@ export default function ApplicationsPage() {
         </div>
       </div>
 
-      {/* Grid View */}
-      {viewMode === 'grid' ? (
+      {errorMsg && (
+        <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs font-semibold flex items-center gap-2">
+          <AlertTriangle size={16} className="text-red-500" />
+          {errorMsg}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="p-12 text-center text-[#5A7165] bg-white border border-[#E2ECE5] rounded-2xl shadow-xs">
+          <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-[#3F7659]" />
+          <p className="text-xs font-semibold">Loading applications from LaunchPad backend...</p>
+        </div>
+      ) : filteredApps.length === 0 ? (
+        <div className="p-12 text-center text-[#5A7165] bg-white border border-[#E2ECE5] rounded-2xl shadow-xs space-y-3">
+          <Boxes size={32} className="mx-auto text-[#5A7165]" />
+          <h3 className="font-bold text-[#173C2D]">No Applications Found</h3>
+          <p className="text-xs">No applications match your filter or search criteria.</p>
+          <Link
+            href="/applications/create"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#3F7659] text-white font-bold text-xs rounded-xl shadow-xs"
+          >
+            <Plus size={14} /> Create Application
+          </Link>
+        </div>
+      ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredApps.map((app) => (
             <div
@@ -157,12 +200,12 @@ export default function ApplicationsPage() {
                   <span
                     className={cn(
                       'px-2.5 py-1 text-[10px] font-bold rounded-full border shrink-0',
-                      app.mode === 'standalone'
+                      app.mode?.toLowerCase() === 'standalone'
                         ? 'bg-[#DDEEDF] text-[#173C2D] border-[#C5E2C8]'
                         : 'bg-[#F3EBDD] text-[#173C2D] border-[#E8DCB8]'
                     )}
                   >
-                    {app.mode === 'standalone' ? 'Standalone' : 'Integration Hub'}
+                    {app.mode?.toLowerCase() === 'standalone' ? 'Standalone' : 'Integration Hub'}
                   </span>
                 </div>
 
@@ -182,7 +225,7 @@ export default function ApplicationsPage() {
                 )}
 
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  {app.modules.map((m, idx) => {
+                  {(app.modules || []).map((m, idx) => {
                     const modName = typeof m === 'string' ? m : m.name;
                     return (
                       <span

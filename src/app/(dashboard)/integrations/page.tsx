@@ -209,7 +209,28 @@ export default function IntegrationHubPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {connectors.map((conn) => (
+          {loading ? (
+            <div className="col-span-full p-8 text-center text-[#5A7165] bg-white border border-[#E2ECE5] rounded-xl">
+              <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-[#3F7659]" />
+              <p className="text-xs font-semibold">Loading real connectors from LaunchPad backend...</p>
+            </div>
+          ) : connectors.length === 0 ? (
+            <div className="col-span-full p-8 text-center bg-white border border-[#E2ECE5] rounded-xl space-y-3">
+              <Network size={32} className="mx-auto text-[#5A7165]" />
+              <h3 className="font-bold text-[#173C2D]">No Connected Integrations Yet</h3>
+              <p className="text-xs text-[#5A7165]">Bind your external customer APIs, CRM backends, or microservices via Integration Hub.</p>
+              <button
+                onClick={() => {
+                  setTestResult(null);
+                  setAddModalOpen(true);
+                }}
+                className="px-4 py-2 bg-[#3F7659] text-white font-bold text-xs rounded-xl shadow-xs"
+              >
+                Add First Integration
+              </button>
+            </div>
+          ) : (
+            connectors.map((conn) => (
             <div
               key={conn.id}
               className="p-5 bg-white border border-[#E2ECE5] hover:border-[#3F7659] rounded-xl shadow-xs transition-all space-y-4 flex flex-col justify-between"
@@ -274,7 +295,7 @@ export default function IntegrationHubPage() {
                 </button>
               </div>
             </div>
-          ))}
+          )))}
         </div>
       </div>
 

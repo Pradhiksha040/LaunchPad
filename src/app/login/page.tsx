@@ -13,15 +13,34 @@ export default function LoginPage() {
   const [password, setPassword] = useState('DemoPass123!');
   const [loggingIn, setLoggingIn] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [sessionExpiredMsg, setSessionExpiredMsg] = useState<string | null>(null);
+  const [redirectPath, setRedirectPath] = useState<string>('/dashboard');
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('session_expired') === 'true') {
+        setSessionExpiredMsg('Your session has expired or authentication is required. Please sign in to continue.');
+      }
+      const redir = params.get('redirect');
+      if (redir) {
+        setRedirectPath(redir);
+      }
+      if (authService.getCurrentUserFromStorage() && !params.get('session_expired')) {
+        router.push(redir || '/dashboard');
+      }
+    }
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoggingIn(true);
     setErrorMsg(null);
+    setSessionExpiredMsg(null);
 
     try {
       await authService.login(email, password);
-      router.push('/dashboard');
+      router.push(redirectPath || '/dashboard');
     } catch (err: any) {
       setErrorMsg(err.message || 'Login failed. Please verify credentials.');
     } finally {
@@ -79,6 +98,11 @@ export default function LoginPage() {
 
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-4 text-xs">
+          {sessionExpiredMsg && (
+            <div className="p-3 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-medium">
+              {sessionExpiredMsg}
+            </div>
+          )}
           {errorMsg && (
             <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs font-medium">
               {errorMsg}

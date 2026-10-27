@@ -104,6 +104,7 @@ export interface Role {
 export interface Organization {
   id: string;
   name: string;
+  slug?: string;
   industry: string;
   applicationsCount: number;
   usersCount: number;
@@ -111,6 +112,7 @@ export interface Organization {
   status: 'active' | 'suspended';
   domain: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Connector {

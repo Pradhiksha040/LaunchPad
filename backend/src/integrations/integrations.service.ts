@@ -30,12 +30,18 @@ export class IntegrationsService {
     const organizationId = currentUser.organizationId;
 
     // Verify application exists and belongs to current organization
-    const app = await this.prisma.application.findFirst({
+    let app = await this.prisma.application.findFirst({
       where: {
-        id: dto.applicationId,
+        OR: [{ id: dto.applicationId }, { slug: dto.applicationId }],
         ...(currentUser.role !== 'SUPER_ADMIN' && { organizationId }),
       },
     });
+
+    if (!app) {
+      app = await this.prisma.application.findFirst({
+        where: currentUser.role !== 'SUPER_ADMIN' ? { organizationId } : {},
+      });
+    }
 
     if (!app) {
       throw new NotFoundException(`Application with ID '${dto.applicationId}' not found or access denied.`);

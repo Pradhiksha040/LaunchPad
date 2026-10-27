@@ -20,11 +20,17 @@ export class ApiClient {
     }
   }
 
+  public static isAuthenticated(): boolean {
+    if (typeof window === 'undefined') return false;
+    return !!localStorage.getItem('launchpad_access_token');
+  }
+
   public static clearTokens() {
     if (typeof window === 'undefined') return;
     localStorage.removeItem('launchpad_access_token');
     localStorage.removeItem('launchpad_refresh_token');
     localStorage.removeItem('launchpad_user');
+    window.dispatchEvent(new Event('launchpad:auth:expired'));
   }
 
   public static getHeaders(): HeadersInit {
