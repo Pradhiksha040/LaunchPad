@@ -52,39 +52,18 @@ export const applicationService = {
       ...payload,
       mode: payload.mode === 'integration_hub' ? 'INTEGRATION_HUB' : 'STANDALONE',
     };
+
     try {
       const createdApp = await ApiClient.post<Application>('applications', formattedPayload);
       if (createdApp && createdApp.id) {
         localApplicationsStore.unshift(createdApp);
         return createdApp;
       }
+      throw new Error('Server returned an empty or invalid application response.');
     } catch (e: any) {
-      if (e.statusCode !== undefined && e.statusCode !== 401) {
-        console.warn('API createApplication error, falling back to local persistent store:', e.message);
-      }
+      console.error('API createApplication error:', e);
+      throw e;
     }
-
-    const fallbackApp: Application = {
-      id: `app-${Date.now().toString(36)}`,
-      name: payload.name,
-      description: payload.description,
-      industry: payload.industry,
-      type: payload.type,
-      mode: payload.mode,
-      status: 'active',
-      templateId: payload.templateId,
-      templateName: payload.templateName,
-      modules: payload.modules,
-      usersCount: 1,
-      environment: 'development',
-      branding: payload.branding,
-      targetBackend: payload.targetBackend,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    localApplicationsStore.unshift(fallbackApp);
-    return fallbackApp;
   },
 
   async updateBranding(id: string, branding: BrandingConfig): Promise<Application | undefined> {

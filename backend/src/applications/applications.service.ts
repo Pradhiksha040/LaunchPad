@@ -19,9 +19,17 @@ export class ApplicationsService {
   ) {}
 
   async create(dto: CreateApplicationDto, currentUser: UserPayload) {
-    const slugBase = dto.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    if (!dto.name || !dto.name.trim()) {
+      throw new BadRequestException('Application name is required and cannot be empty.');
+    }
+
+    const organizationId = currentUser?.organizationId;
+    if (!organizationId) {
+      throw new BadRequestException('Authenticated user must belong to an organization.');
+    }
+
+    const slugBase = dto.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'app';
     const slug = `${slugBase}-${Date.now().toString(36)}`;
-    const organizationId = currentUser.organizationId;
 
     let templateId: string | null = null;
     if (dto.templateId) {
@@ -36,7 +44,7 @@ export class ApplicationsService {
     }
 
     const branding = (dto.branding as any) || {
-      appName: dto.name,
+      appName: dto.name.trim(),
       primaryColor: '#3F7659',
       secondaryColor: '#DDEEDF',
       font: 'Inter',
@@ -47,59 +55,129 @@ export class ApplicationsService {
     const mode = (dto.mode?.toUpperCase() as AppMode) || AppMode.STANDALONE;
     const status = (dto.status?.toUpperCase() as AppStatus) || AppStatus.ACTIVE;
 
-    const rawModules = dto.modules || ['Visitor Registration', 'Appointments', 'Check-in / Check-out'];
-    const moduleCreateInputs = rawModules.map((m: any, idx: number) => {
+    const rawModules = dto.modules && dto.modules.length > 0
+      ? dto.modules
+      : ['Visitor Registration', 'Appointments', 'Check-in / Check-out'];
+
+    // Deduplicate modules and prevent duplicate associations
+    const seenCodes = new Set<string>();
+    const seenNames = new Set<string>();
+    const seenModuleIds = new Set<string>();
+    const normalizedModules: any[] = [];
+
+    for (let idx = 0; idx < rawModules.length; idx++) {
+      const m = rawModules[idx];
+      const name = typeof m === 'string' ? m.trim() : (m.name || '').trim();
+      if (!name) continue;
+
+      const code = (typeof m === 'object' && m.code ? m.code : name).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      const moduleId = typeof m === 'object' && m.id ? m.id : `mod-${code}`;
+
+      if (seenCodes.has(code) || seenNames.has(name.toLowerCase()) || seenModuleIds.has(moduleId)) {
+        continue; // Skip duplicate modules
+      }
+
+      seenCodes.add(code);
+      seenNames.add(name.toLowerCase());
+      seenModuleIds.add(moduleId);
+
       if (typeof m === 'string') {
-        return {
-          name: m,
-          code: m.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+        normalizedModules.push({
+          moduleId,
+          name,
+          code,
           isEnabled: true,
           category: 'Core',
           order: idx + 1,
-        };
+        });
+      } else {
+        normalizedModules.push({
+          moduleId,
+          name,
+          code,
+          description: m.description || null,
+          category: m.category || 'General',
+          icon: m.icon || 'Boxes',
+          isEnabled: m.isEnabled !== false,
+          isRequired: !!(m.required || m.isRequired),
+          isCustom: !!(m.custom || m.isCustom),
+          order: m.order || idx + 1,
+          dependencies: m.dependencies || null,
+          visibility: m.visibility || null,
+          permissions: m.permissions || null,
+          configuration: m.configuration || null,
+        });
       }
-      return {
-        moduleId: m.id || `mod-${idx}`,
-        name: m.name,
-        code: (m.name || 'module').toLowerCase().replace(/[^a-z0-9]+/g, '_'),
-        description: m.description || null,
-        category: m.category || 'General',
-        icon: m.icon || 'Boxes',
-        isEnabled: m.isEnabled !== false,
-        isRequired: !!(m.required || m.isRequired),
-        isCustom: !!(m.custom || m.isCustom),
-        order: m.order || idx + 1,
-        dependencies: m.dependencies || null,
-        visibility: m.visibility || null,
-        permissions: m.permissions || null,
-        configuration: m.configuration || null,
-      };
-    });
+    }
 
-    const application = await this.prisma.application.create({
-      data: {
-        organizationId,
-        name: dto.name,
-        slug,
-        description: dto.description || 'Enterprise platform application generated via LaunchPad wizard',
-        mode,
-        status,
-        templateId,
-        environment: 'development',
-        usersCount: 1,
-        branding,
-        targetBackend: (dto.targetBackend as any) || null,
-        modules: {
-          create: moduleCreateInputs,
-        },
+    if (normalizedModules.length === 0) {
+      throw new BadRequestException('At least one valid module must be selected.');
+    }
+
+    // Validate module dependencies
+    for (const mod of normalizedModules) {
+      if (mod.dependencies) {
+        const deps = Array.isArray(mod.dependencies)
+          ? mod.dependencies
+          : Array.isArray(mod.dependencies.requires)
+          ? mod.dependencies.requires
+          : [];
+        for (const dep of deps) {
+          const depStr = String(dep).toLowerCase();
+          const depMatched = normalizedModules.some(
+            (other) =>
+              other.moduleId?.toLowerCase() === depStr ||
+              other.code?.toLowerCase() === depStr ||
+              other.name?.toLowerCase() === depStr,
+          );
+          if (!depMatched) {
+            throw new BadRequestException(
+              `Module '${mod.name}' requires dependency '${dep}', but that module is not selected.`,
+            );
+          }
+        }
+      }
+    }
+
+    const applicationData = {
+      organizationId,
+      name: dto.name.trim(),
+      slug,
+      description: dto.description || 'Enterprise platform application generated via LaunchPad wizard',
+      mode,
+      status,
+      templateId,
+      environment: 'development',
+      usersCount: 1,
+      branding,
+      targetBackend: (dto.targetBackend as any) || null,
+      modules: {
+        create: normalizedModules,
       },
-      include: {
-        organization: true,
-        template: true,
-        modules: true,
-        settings: true,
-      },
-    });
+    };
+
+    // Execute application creation transactionally
+    const application = typeof this.prisma.$transaction === 'function'
+      ? await this.prisma.$transaction(async (tx: any) => {
+          return tx.application.create({
+            data: applicationData,
+            include: {
+              organization: true,
+              template: true,
+              modules: true,
+              settings: true,
+            },
+          });
+        })
+      : await this.prisma.application.create({
+          data: applicationData,
+          include: {
+            organization: true,
+            template: true,
+            modules: true,
+            settings: true,
+          },
+        });
 
     await this.auditLogsService.logAction({
       userId: currentUser.userId,

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { AppMode, AppStatus } from '@prisma/client';
 
 export class BrandingConfigDto {
@@ -73,11 +73,13 @@ export class CreateApplicationDto {
   industry?: string;
 
   @ApiPropertyOptional({ enum: AppMode, default: AppMode.STANDALONE })
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
   @IsEnum(AppMode)
   @IsOptional()
   mode?: AppMode;
 
   @ApiPropertyOptional({ enum: AppStatus, default: AppStatus.ACTIVE })
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
   @IsEnum(AppStatus)
   @IsOptional()
   status?: AppStatus;
@@ -95,7 +97,7 @@ export class CreateApplicationDto {
   @ApiPropertyOptional({ example: ['Visitor Registration', 'Appointment', 'Check-in / Check-out', 'Host Management', 'QR Code', 'Reports'] })
   @IsArray()
   @IsOptional()
-  modules?: string[];
+  modules?: any[];
 
   @ApiPropertyOptional({ type: BrandingConfigDto })
   @IsOptional()
@@ -118,11 +120,13 @@ export class UpdateApplicationDto {
   description?: string;
 
   @ApiPropertyOptional({ enum: AppMode })
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
   @IsEnum(AppMode)
   @IsOptional()
   mode?: AppMode;
 
   @ApiPropertyOptional({ enum: AppStatus })
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
   @IsEnum(AppStatus)
   @IsOptional()
   status?: AppStatus;
@@ -130,7 +134,7 @@ export class UpdateApplicationDto {
   @ApiPropertyOptional()
   @IsArray()
   @IsOptional()
-  modules?: string[];
+  modules?: any[];
 
   @ApiPropertyOptional({ type: BrandingConfigDto })
   @IsOptional()

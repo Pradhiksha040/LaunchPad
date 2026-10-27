@@ -20,6 +20,7 @@ describe('ApplicationsService', () => {
 
   beforeEach(async () => {
     prismaService = {
+      $transaction: jest.fn(async (cb) => cb(prismaService)),
       application: {
         create: jest.fn(),
         findMany: jest.fn(),
@@ -87,6 +88,60 @@ describe('ApplicationsService', () => {
     expect(auditLogsService.logAction).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'Application Created', resourceId: 'app-789' }),
     );
+  });
+
+  it('should reject application creation when name is empty', async () => {
+    await expect(
+      service.create({ name: '   ', modules: ['Visitor Registration'] }, mockUserPayload),
+    ).rejects.toThrow('Application name is required and cannot be empty.');
+  });
+
+  it('should reject application creation when organizationId is missing', async () => {
+    const userWithoutOrg = { ...mockUserPayload, organizationId: '' as any };
+    await expect(
+      service.create({ name: 'Test App', modules: ['Visitor Registration'] }, userWithoutOrg),
+    ).rejects.toThrow('Authenticated user must belong to an organization.');
+  });
+
+  it('should reject application creation when module dependency is missing', async () => {
+    const modulesWithMissingDep = [
+      {
+        id: 'mod-reports',
+        name: 'Analytics Reports',
+        dependencies: ['Visitor Registration'],
+      },
+    ];
+    await expect(
+      service.create({ name: 'Test App', modules: modulesWithMissingDep }, mockUserPayload),
+    ).rejects.toThrow(/requires dependency 'Visitor Registration'/);
+  });
+
+  it('should deduplicate modules with duplicate names or codes', async () => {
+    const duplicateModules = [
+      'Visitor Registration',
+      'Visitor Registration',
+      { id: 'mod-1', name: 'Visitor Registration' },
+      'Check-in / Check-out',
+    ];
+
+    prismaService.application.create.mockImplementation(async ({ data }: any) => {
+      expect(data.modules.create.length).toBe(2);
+      return {
+        id: 'app-dedup-1',
+        organizationId: 'org-456',
+        name: 'Dedup App',
+        slug: 'dedup-app-123',
+        description: 'Test',
+        mode: 'STANDALONE',
+        status: 'ACTIVE',
+        modules: data.modules.create,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    });
+
+    const res = await service.create({ name: 'Dedup App', modules: duplicateModules }, mockUserPayload);
+    expect(res.modules.length).toBe(2);
   });
 
   it('should fetch application modules with getApplicationModules', async () => {

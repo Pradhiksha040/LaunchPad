@@ -358,6 +358,20 @@ export default function CreateApplicationWizardPage() {
   };
 
   const triggerCreation = async () => {
+    if (creating) return;
+
+    if (!name.trim()) {
+      setCreationError('Application Name is required and cannot be empty.');
+      setStep(1);
+      return;
+    }
+
+    if (selectedModuleIds.length === 0) {
+      setCreationError('Please select at least one module for your application.');
+      setStep(4);
+      return;
+    }
+
     setStep(7);
     setCreating(true);
     setCreationError(null);
@@ -365,7 +379,7 @@ export default function CreateApplicationWizardPage() {
     try {
       for (let i = 0; i < creationProgressSteps.length; i++) {
         setCreationStepIndex(i);
-        await new Promise((r) => setTimeout(r, 400));
+        await new Promise((r) => setTimeout(r, 200));
       }
 
       const selectedModulesPayload = allModules
@@ -389,8 +403,8 @@ export default function CreateApplicationWizardPage() {
         });
 
       const created = await applicationService.createApplication({
-        name,
-        description,
+        name: name.trim(),
+        description: description.trim(),
         industry,
         type: appType,
         mode,
@@ -408,10 +422,12 @@ export default function CreateApplicationWizardPage() {
 
       setCreatedAppResult(created);
       setShowSuccessState(true);
+      setCreating(false);
+      // Navigate to created application's actual configuration page
+      router.push(`/applications/${created.id}`);
     } catch (err: any) {
       console.error('Failed to create application:', err);
       setCreationError(err.message || 'Failed to persist application in database.');
-    } finally {
       setCreating(false);
     }
   };
@@ -1262,9 +1278,21 @@ export default function CreateApplicationWizardPage() {
             <button
               type="button"
               onClick={handleNext}
-              className="px-6 py-2.5 bg-[#3F7659] hover:bg-[#173C2D] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2"
+              disabled={creating}
+              className={cn(
+                'px-6 py-2.5 bg-[#3F7659] hover:bg-[#173C2D] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2',
+                creating && 'opacity-60 cursor-not-allowed'
+              )}
             >
-              {step === 6 ? 'Create Application' : 'Continue'} <ArrowRight size={14} />
+              {creating ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" /> Creating Application...
+                </>
+              ) : (
+                <>
+                  {step === 6 ? 'Create Application' : 'Continue'} <ArrowRight size={14} />
+                </>
+              )}
             </button>
           </div>
         )}

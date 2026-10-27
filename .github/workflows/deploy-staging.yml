@@ -21,12 +21,37 @@ jobs:
         run: cd backend && npm ci
 
       - name: Execute Production Prisma Migration
-        run: cd backend && npx prisma migrate status || echo "Database migrations verified"
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not set. Cannot run migrations against staging database."
+            exit 1
+          fi
+          echo "Applying pending migrations to staging PostgreSQL database..."
+          cd backend && npx prisma migrate deploy
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
 
       - name: Deployment Verification Probes
         run: |
-          echo "Deployment successful. Verifying health probes..."
-          echo "Liveness: GET /health/liveness -> 200 OK"
-          echo "Readiness: GET /health/readiness -> 200 OK"
+          if [ -n "$STAGING_BACKEND_URL" ]; then
+            echo "Verifying health probes against $STAGING_BACKEND_URL..."
+            echo "Checking Liveness probe..."
+            LIVENESS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$STAGING_BACKEND_URL/health/liveness")
+            if [ "$LIVENESS_STATUS" != "200" ]; then
+              echo "::error::Liveness check failed with status $LIVENESS_STATUS"
+              exit 1
+            fi
+            echo "Liveness probe: 200 OK"
+
+            echo "Checking Readiness probe..."
+            READINESS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$STAGING_BACKEND_URL/health/readiness")
+            if [ "$READINESS_STATUS" != "200" ]; then
+              echo "::error::Readiness check failed with status $READINESS_STATUS"
+              exit 1
+            fi
+            echo "Readiness probe: 200 OK"
+          else
+            echo "Notice: STAGING_BACKEND_URL secret is not configured; skipping remote probe execution."
+          fi
+        env:
+          STAGING_BACKEND_URL: ${{ secrets.STAGING_BACKEND_URL }}
