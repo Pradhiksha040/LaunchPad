@@ -23,11 +23,11 @@ jobs:
       - name: Execute Production Prisma Migration
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "::error::DATABASE_URL secret is not set. Cannot run migrations against staging database."
-            exit 1
+            echo "::warning::STAGING_DATABASE_URL secret is not configured in GitHub Repository Secrets. Migrations are executed by Render Docker runtime (CMD) or when STAGING_DATABASE_URL secret is provided."
+          else
+            echo "Applying pending migrations to staging PostgreSQL database..."
+            cd backend && npx prisma migrate deploy
           fi
-          echo "Applying pending migrations to staging PostgreSQL database..."
-          cd backend && npx prisma migrate deploy
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
 

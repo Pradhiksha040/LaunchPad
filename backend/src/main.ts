@@ -56,10 +56,10 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT || 4000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
-  logger.log(`🚀 LaunchPad Core Backend API running on http://localhost:${port}`);
-  logger.log(`📚 Swagger Documentation accessible at http://localhost:${port}/api/docs`);
+  logger.log(`🚀 LaunchPad Core Backend API running on http://0.0.0.0:${port}`);
+  logger.log(`📚 Swagger Documentation accessible at http://0.0.0.0:${port}/api/docs`);
 }
 
 bootstrap();
