@@ -50,22 +50,11 @@ export const userService = {
         usersStore.unshift(formattedUser);
         return formattedUser;
       }
+      throw new Error('User creation returned empty payload');
     } catch (e: any) {
-      if (e.statusCode !== undefined) throw e;
-      console.warn('API createUser failed, using local store:', e.message);
+      console.error('API createUser error:', e);
+      throw e;
     }
-
-    const newUser: User = {
-      id: `usr-${Date.now()}`,
-      name: user.name || 'New User',
-      email: user.email || 'user@company.com',
-      organization: user.organization || 'TechSolutions Inc.',
-      role: user.role || 'DEVELOPER',
-      status: 'active',
-      lastLogin: 'Never',
-    };
-    usersStore.unshift(newUser);
-    return newUser;
   },
 
   async getRoles(): Promise<Role[]> {

@@ -22,19 +22,23 @@ export default function ReportsPage() {
     loadReports();
   }, []);
 
-  const handleDownloadReport = (reportId: string, title: string) => {
-    setExportingId(reportId);
-    const exportUrl = analyticsService.getReportExportUrl(reportId, format, timeframe);
-
-    // Trigger browser download via anchor element
-    const link = document.createElement('a');
-    link.href = exportUrl;
-    link.setAttribute('download', `${reportId}_export.${format}`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setTimeout(() => setExportingId(null), 1500);
+  const handleDownloadReport = async (reportId: string, title: string) => {
+    try {
+      setExportingId(reportId);
+      const blob = await analyticsService.downloadReport(reportId, format, timeframe);
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.setAttribute('download', `${reportId}_export.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      console.error('Failed to export report:', err);
+    } finally {
+      setExportingId(null);
+    }
   };
 
   return (

@@ -170,24 +170,8 @@ export const integrationService = {
       fallbackConnectorsStore.unshift(newConnector);
       return newConnector;
     } catch (err: any) {
-      if (err.statusCode !== undefined) throw err;
-      // Fallback local creation
-      const newConnector: Connector = {
-        id: `conn-${Date.now().toString(36)}`,
-        name: payload.name || 'New Custom Connector',
-        type: 'rest_api',
-        category: (payload.category as any) || 'Custom',
-        status: 'connected',
-        targetSystem: payload.targetSystem || 'External System API',
-        targetTech: (payload.targetTech as any) || 'PHP',
-        authType: (payload.authType as any) || 'API Key',
-        baseUrl: payload.baseUrl || 'https://api.external.com/v1',
-        lastSync: 'Just now',
-        latencyMs: Math.floor(Math.random() * 90) + 40,
-        successRate: 100,
-      };
-      fallbackConnectorsStore.unshift(newConnector);
-      return newConnector;
+      console.error('API createConnector error:', err);
+      throw err;
     }
   },
 

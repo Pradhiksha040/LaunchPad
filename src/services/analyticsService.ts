@@ -159,10 +159,28 @@ export const analyticsService = {
     ];
   },
 
-  getReportExportUrl(reportId: string, format: 'csv' | 'json' = 'csv', timeframe = '30d'): string {
+  async downloadReport(reportId: string, format: 'csv' | 'json' = 'csv', timeframe = '30d'): Promise<Blob> {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const token = typeof window !== 'undefined' ? localStorage.getItem('launchpad_access_token') || '' : '';
-    return `${API_URL.replace(/\/$/, '')}/analytics/reports/export?reportId=${reportId}&format=${format}&timeframe=${timeframe}&token=${token}`;
+    const res = await fetch(
+      `${API_URL.replace(/\/$/, '')}/analytics/reports/export?reportId=${encodeURIComponent(reportId)}&format=${format}&timeframe=${timeframe}`,
+      {
+        method: 'GET',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: `Export failed with status ${res.status}` }));
+      throw new Error(err.message || 'Report download failed');
+    }
+    return await res.blob();
+  },
+
+  getReportExportUrl(reportId: string, format: 'csv' | 'json' = 'csv', timeframe = '30d'): string {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    return `${API_URL.replace(/\/$/, '')}/analytics/reports/export?reportId=${encodeURIComponent(reportId)}&format=${format}&timeframe=${timeframe}`;
   },
 
   async getAPIKeys(): Promise<APIKey[]> {
