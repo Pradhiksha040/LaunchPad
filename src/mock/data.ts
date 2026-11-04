@@ -46,6 +46,12 @@ export const MOCK_APPLICATIONS: Application[] = [
       buttonStyle: 'rounded',
       borderRadius: '0.625rem',
     },
+    targetBackend: {
+      systemName: 'SecurePass Django REST Framework Backend',
+      techStack: 'Python Django 5.x / DRF / PostgreSQL',
+      connectorType: 'REST_MANAGED_SCOPED',
+      endpointUrl: 'https://api-securepass.prajai.in/api/',
+    },
     updatedAt: '2026-09-08T10:15:00Z',
     createdAt: '2026-01-15T09:00:00Z',
   },

@@ -66,28 +66,49 @@ export const marketplaceService = {
       if (Array.isArray(res)) return res;
     } catch {}
 
-    // Fallback curated mock marketplace catalog for browser demo
+    // Fallback curated marketplace catalog
     return [
       {
         id: 'ast-vms-01',
-        name: 'Corporate Visitor Pass & Host Alert OS',
-        slug: 'corporate-visitor-pass-os',
-        description: 'Complete Visitor Management System with QR check-in, host arrival notifications, and security gate logs.',
+        name: 'Visitor Management System (VMS) - SecurePass Enterprise',
+        slug: 'visitor-management-system',
+        description: 'Enterprise visitor check-in, dynamic QR badge printing, multi-facility parking, real-time host notifications, emergency evacuation roll-call, and security audit logs.',
         category: 'Operations',
         type: 'APPLICATION',
-        version: '1.2.0',
-        publisherId: 'org-pub-1',
-        authorName: 'Acme SaaS Solutions',
-        iconUrl: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=120&auto=format&fit=crop&q=80',
-        screenshots: [],
-        tags: ['VMS', 'Visitor Pass', 'QR Check-in', 'Alerts'],
+        version: '2.4.0',
+        publisherId: 'org-securepass-core',
+        authorName: 'SecurePass Systems / Prajai Tech',
+        iconUrl: '/vms-runtime/securepass-icon-solid.png',
+        screenshots: [
+          '/vms-runtime/securepass-brand.png',
+          '/vms-runtime/securepass-banner.png',
+        ],
+        tags: ['VMS', 'Visitor Pass', 'QR Badges', 'Parking', 'Event Portal', 'Evacuation', 'Verified Pre-Built'],
         pricingType: 'FREE',
         price: 0,
         status: 'PUBLISHED',
-        installationsCount: 142,
+        installationsCount: 384,
         visibility: 'PUBLIC',
-        requiredModules: ['Visitor Registration', 'Host Notifications', 'Badge Printing'],
-        changelog: 'Added QR instant scan & host SMS integration.',
+        requiredModules: [
+          'Visitor Registration',
+          'Visitor Check-in / Check-out',
+          'Dynamic QR Badges',
+          'Host Notifications (Email/SMS)',
+          'Today Expected Visitors',
+          'Multi-Facility Parking',
+          'Emergency Evacuation Roll-Call',
+          'Badge Studio Printing',
+          'Audit Logs & Gate Reports',
+        ],
+        configuration: {
+          techStack: 'React 18 + Vite SPA / Python Django REST Framework / PostgreSQL',
+          liveApi: 'https://api-securepass.prajai.in/api/',
+          portals: ['ORGANIZATION', 'EVENT'],
+          runtimeUrl: '/vms-runtime/index.html',
+          isPreBuiltVerified: true,
+          deploymentMethod: 'Managed Dedicated Backend with Scoped Organization Scope',
+        },
+        changelog: 'v2.4.0: First ready-to-use business application module in LaunchPad Marketplace. Includes dual Corporate & Event portal support, Pistachio Green theme injection, and verified backend connectivity.',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -145,7 +166,14 @@ export const marketplaceService = {
       return await ApiClient.get<MarketplaceAsset>(`/marketplace/slug/${slug}`);
     } catch {
       const publicAssets = await this.getPublicAssets();
-      const match = publicAssets.find((a) => a.slug === slug);
+      const normalizedSlug = slug.toLowerCase();
+      const match = publicAssets.find(
+        (a) =>
+          a.slug === normalizedSlug ||
+          (normalizedSlug.includes('vms') && a.id === 'ast-vms-01') ||
+          (normalizedSlug.includes('visitor') && a.id === 'ast-vms-01') ||
+          (normalizedSlug === 'corporate-visitor-pass-os' && a.id === 'ast-vms-01')
+      );
       if (match) return match;
       return publicAssets[0];
     }

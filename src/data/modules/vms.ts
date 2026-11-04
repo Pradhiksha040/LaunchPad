@@ -311,4 +311,49 @@ export const VMS_MODULES: AppModuleItem[] = [
     enabledByDefault: true,
     order: 28,
   },
+
+  // Parking & Facilities
+  {
+    id: 'vms-parking-allocation',
+    name: 'Multi-Facility Parking Management',
+    description: 'Real-time vehicle license plate logging, parking zone allocation, and QR gate validation.',
+    category: 'Parking & Facilities',
+    icon: 'Car',
+    recommended: true,
+    enabledByDefault: true,
+    order: 29,
+  },
+  {
+    id: 'vms-parking-slots',
+    name: 'Parking Slot Inventory',
+    description: 'Real-time tracking of vacant vs occupied visitor parking slots across campus zones.',
+    category: 'Parking & Facilities',
+    icon: 'LayoutGrid',
+    recommended: false,
+    enabledByDefault: false,
+    dependencies: ['vms-parking-allocation'],
+    order: 30,
+  },
+
+  // Event & Conference Suite
+  {
+    id: 'vms-event-conference-portal',
+    name: 'Event & Conference Management',
+    description: 'Specialized high-capacity expo portal for multi-hall check-ins, sessions, booths, and exhibitor staff badges.',
+    category: 'Event & Conference Suite',
+    icon: 'Sparkles',
+    recommended: false,
+    enabledByDefault: false,
+    order: 31,
+  },
+  {
+    id: 'vms-badge-studio',
+    name: 'Interactive Badge Studio',
+    description: 'Design, preview, and batch-print enterprise credentials and visitor passes with custom layouts.',
+    category: 'Badges & Access',
+    icon: 'Layers',
+    recommended: true,
+    enabledByDefault: true,
+    order: 32,
+  },
 ];

@@ -170,3 +170,4 @@ Live endpoint checks executed against `http://localhost:4000`:
 1. **Staging Server Deployment & Smoke Verification:** Deploy the hardened Docker Compose stack to the staging environment and execute smoke tests against live domain with SSL.
 2. **Audit Log Export Enhancement:** Add filter parameters (by action type, user, date range) to the compliance security audit log page.
 3. **Password Reset & Email Verification Flow:** Implement secure token-based password reset endpoints via transactional email service (e.g., SendGrid/AWS SES).
+

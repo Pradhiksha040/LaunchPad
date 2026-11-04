@@ -254,13 +254,32 @@ export default function MarketplacePage() {
                   <span>{ast.installationsCount} installs</span>
                 </div>
 
-                <Link
-                  href={`/marketplace/${ast.slug}`}
-                  className="px-3.5 py-1.5 bg-[#F3F9F5] hover:bg-[#3F7659] text-[#173C2D] hover:text-white text-xs font-bold rounded-lg border border-[#E2ECE5] hover:border-transparent transition-all flex items-center gap-1"
-                >
-                  <span>View Details</span>
-                  <ExternalLink size={12} />
-                </Link>
+                <div className="flex items-center gap-2">
+                  {ast.id === 'ast-vms-01' ? (
+                    <>
+                      <Link
+                        href={`/marketplace/${ast.slug}/configure`}
+                        className="px-3 py-1.5 bg-[#3F7659] hover:bg-[#173C2D] text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-xs"
+                      >
+                        <Sparkles size={11} /> Configure
+                      </Link>
+                      <Link
+                        href={`/marketplace/${ast.slug}`}
+                        className="px-2.5 py-1.5 bg-[#F3F9F5] hover:bg-[#DDEEDF] text-[#173C2D] text-xs font-bold rounded-lg border border-[#E2ECE5] transition-colors"
+                      >
+                        Details
+                      </Link>
+                    </>
+                  ) : (
+                    <Link
+                      href={`/marketplace/${ast.slug}`}
+                      className="px-3.5 py-1.5 bg-[#F3F9F5] hover:bg-[#3F7659] text-[#173C2D] hover:text-white text-xs font-bold rounded-lg border border-[#E2ECE5] hover:border-transparent transition-all flex items-center gap-1"
+                    >
+                      <span>View Details</span>
+                      <ExternalLink size={12} />
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           ))}

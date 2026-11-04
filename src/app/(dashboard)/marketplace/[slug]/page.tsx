@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { marketplaceService, MarketplaceAsset } from '@/services/marketplaceService';
 import { marketplaceBillingService } from '@/services/marketplaceBillingService';
+import { VmsFeaturePreview } from '@/components/vms/VmsFeaturePreview';
 
 export default function MarketplaceAssetDetailsPage() {
   const params = useParams();
@@ -161,15 +162,22 @@ export default function MarketplaceAssetDetailsPage() {
           </div>
         </div>
 
-        {/* Install or Buy Action Button */}
-        <div className="shrink-0">
+        {/* Install or Configure Action Buttons */}
+        <div className="shrink-0 flex items-center gap-3">
+          <Link
+            href={`/marketplace/${asset.slug}/configure`}
+            className="w-full sm:w-auto px-6 py-3 bg-[#3F7659] hover:bg-[#173C2D] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+          >
+            <Sparkles size={16} /> Configure & Deploy Application
+          </Link>
+
           {asset.pricingType !== 'FREE' && !hasLicense ? (
             <button
               onClick={handleBuyNow}
               disabled={buying || checkingLicense}
-              className="w-full sm:w-auto px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+              className="px-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
             >
-              <Sparkles size={16} /> {buying ? 'Redirecting to Stripe...' : `Buy Now ($${asset.price}) & Unlock License`}
+              {buying ? 'Redirecting...' : `Unlock ($${asset.price})`}
             </button>
           ) : (
             <button
@@ -177,13 +185,20 @@ export default function MarketplaceAssetDetailsPage() {
                 setInstallStep(1);
                 setShowInstallModal(true);
               }}
-              className="w-full sm:w-auto px-6 py-3 bg-[#3F7659] hover:bg-[#173C2D] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+              className="px-4 py-3 bg-[#F3F9F5] hover:bg-[#DDEEDF] text-[#173C2D] text-xs font-bold rounded-xl border border-[#C5E2C8] transition-all flex items-center justify-center gap-1.5"
             >
-              <Sparkles size={16} /> {asset.pricingType !== 'FREE' ? 'Active License Verified — Install Asset' : 'Install Asset into Organization'}
+              Quick Install
             </button>
           )}
         </div>
       </div>
+
+      {/* If VMS Module, Show Live Interactive Feature Preview */}
+      {(asset.id === 'ast-vms-01' || slug.includes('vms') || slug.includes('visitor')) && (
+        <div className="space-y-2">
+          <VmsFeaturePreview />
+        </div>
+      )}
 
       {/* Asset Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
