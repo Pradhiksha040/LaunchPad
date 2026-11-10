@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Server,
   ExternalLink,
@@ -20,52 +20,117 @@ interface VmsInteractiveLauncherProps {
   app: Application;
 }
 
+type BackendHealthState = 'checking' | 'active_authorized' | 'active_secured' | 'unhealthy' | 'unreachable';
+
 export function VmsInteractiveLauncher({ app }: VmsInteractiveLauncherProps) {
   const [iframeKey, setIframeKey] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'active' | 'unreachable'>('checking');
+  const [backendStatus, setBackendStatus] = useState<BackendHealthState>('checking');
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Check live backend connectivity
+  const portalMode = (app as any).configuration?.portalMode || 'ORGANIZATION';
+  const orgScopeId = (app as any).configuration?.organizationScopeId || app.organizationId || 'org-prod-default';
+  const facilityName = (app as any).configuration?.facilityName || 'Corporate Campus';
+  const companyId = (app as any).configuration?.companyId || 'comp-hq-01';
+
+  // Inject configuration into runtime environment (localStorage & postMessage)
+  const injectRuntimeConfiguration = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('active_organization_id', orgScopeId);
+        localStorage.setItem('active_company_id', companyId);
+        localStorage.setItem(
+          'vms_global_settings',
+          JSON.stringify({
+            companyName: app.branding?.appName || app.name,
+            facilityName,
+            portalMode,
+            primaryColor: app.branding?.primaryColor || '#3F7659',
+            plan: 'Enterprise Scoped',
+            validHours: '8',
+          })
+        );
+      }
+
+      if (iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(
+          {
+            type: 'LAUNCHPAD_VMS_INIT',
+            payload: {
+              organizationId: orgScopeId,
+              companyId,
+              facilityName,
+              portalMode,
+              primaryColor: app.branding?.primaryColor || '#3F7659',
+              globalSettings: {
+                companyName: app.branding?.appName || app.name,
+                facilityName,
+                portalMode,
+              },
+            },
+          },
+          '*'
+        );
+      }
+    } catch (e) {
+      console.warn('Configuration injection notice:', e);
+    }
+  };
+
+  // Check live backend connectivity with rigorous status distinction
   useEffect(() => {
     let isMounted = true;
     const checkLiveBackend = async () => {
+      setBackendStatus('checking');
       const startTime = performance.now();
       try {
-        // Direct ping to verified production DRF API
         const res = await fetch('https://api-securepass.prajai.in/api/', {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
-          mode: 'cors',
-        }).catch(() => null);
+        });
 
         if (isMounted) {
           const elapsed = Math.round(performance.now() - startTime);
           setLatencyMs(elapsed);
-          // Even a 401 response proves the DRF backend is active and secured!
-          setBackendStatus('active');
+
+          if (res.status === 200) {
+            setBackendStatus('active_authorized');
+          } else if (res.status === 401 || res.status === 403) {
+            // Live DRF backend actively responding and enforcing JWT authentication
+            setBackendStatus('active_secured');
+          } else if (res.status >= 500) {
+            setBackendStatus('unhealthy');
+          } else {
+            setBackendStatus('active_secured');
+          }
         }
       } catch {
         if (isMounted) {
-          setBackendStatus('active'); // DRF is verified active from node/python pings
-          setLatencyMs(185);
+          // Genuine network failure: do NOT fabricate latency or mark active!
+          setLatencyMs(null);
+          setBackendStatus('unreachable');
         }
       }
     };
 
     checkLiveBackend();
+    injectRuntimeConfiguration();
+
     return () => {
       isMounted = false;
     };
-  }, []);
-
-  const portalMode = (app as any).configuration?.portalMode || 'ORGANIZATION';
-  const orgScopeId = (app as any).configuration?.organizationScopeId || 'org-prod-default';
-  const facilityName = (app as any).configuration?.facilityName || 'Corporate Campus';
+  }, [iframeKey, orgScopeId, facilityName, app.name]);
 
   const handleRefresh = () => {
     setLoading(true);
+    injectRuntimeConfiguration();
     setIframeKey((prev) => prev + 1);
+  };
+
+  const handleIframeLoaded = () => {
+    injectRuntimeConfiguration();
+    setLoading(false);
   };
 
   const runtimeUrl = '/vms-runtime/index.html';
@@ -99,17 +164,31 @@ export function VmsInteractiveLauncher({ app }: VmsInteractiveLauncherProps) {
             <span
               className={cn(
                 'w-2 h-2 rounded-full',
-                backendStatus === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                backendStatus === 'active_authorized' && 'bg-emerald-500 animate-pulse',
+                backendStatus === 'active_secured' && 'bg-emerald-500',
+                backendStatus === 'unhealthy' && 'bg-rose-500',
+                backendStatus === 'unreachable' && 'bg-rose-500',
+                backendStatus === 'checking' && 'bg-amber-500 animate-pulse'
               )}
             />
             <span className="font-medium text-[#173C2D]">
-              {backendStatus === 'active' ? (
+              {backendStatus === 'active_authorized' && (
                 <>
-                  DRF Backend: <strong className="text-emerald-700">Online</strong> ({latencyMs || 185}ms)
+                  DRF Backend: <strong className="text-emerald-700">Online (200 OK)</strong> {latencyMs !== null && `(${latencyMs}ms)`}
                 </>
-              ) : (
-                'Verifying Backend...'
               )}
+              {backendStatus === 'active_secured' && (
+                <>
+                  DRF Backend: <strong className="text-emerald-700">Active (Secured)</strong> {latencyMs !== null && `(${latencyMs}ms)`}
+                </>
+              )}
+              {backendStatus === 'unhealthy' && (
+                <span className="text-rose-700 font-bold">DRF Backend: Unhealthy (5xx)</span>
+              )}
+              {backendStatus === 'unreachable' && (
+                <span className="text-rose-700 font-bold">DRF Backend: Unreachable</span>
+              )}
+              {backendStatus === 'checking' && 'Verifying Backend...'}
             </span>
           </div>
 
@@ -171,10 +250,11 @@ export function VmsInteractiveLauncher({ app }: VmsInteractiveLauncherProps) {
           )}
 
           <iframe
+            ref={iframeRef}
             key={iframeKey}
             src={runtimeUrl}
             title={`${app.name} Runtime`}
-            onLoad={() => setLoading(false)}
+            onLoad={handleIframeLoaded}
             className="w-full h-full border-0"
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
           />

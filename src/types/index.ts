@@ -48,6 +48,7 @@ export interface AppModuleItem {
 export interface Application {
   id: string;
   slug?: string;
+  organizationId?: string;
   name: string;
   description: string;
   industry: string;
@@ -62,6 +63,7 @@ export interface Application {
   branding: BrandingConfig;
   updatedAt: string;
   createdAt: string;
+  configuration?: any;
   targetBackend?: {
     systemName: string;
     techStack: string;
@@ -88,6 +90,8 @@ export interface User {
   email: string;
   avatar?: string;
   organization: string;
+  organizationId?: string;
+  organizationName?: string;
   role: string;
   status: 'active' | 'disabled' | 'pending';
   lastLogin: string;

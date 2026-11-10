@@ -13,6 +13,30 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Runtime Configuration Bootstrapper for LaunchPad OS -->
+    <script>
+      window.__VMS_API_URL__ = "https://api-securepass.prajai.in/api/";
+      window.__VMS_DEV_MODE__ = window.location.search.includes('dev_mode=true');
+
+      window.addEventListener('message', function(event) {
+        if (!event.data || event.data.type !== 'LAUNCHPAD_VMS_INIT') return;
+        const cfg = event.data.payload || {};
+        if (cfg.organizationId) {
+          localStorage.setItem('active_organization_id', cfg.organizationId);
+        }
+        if (cfg.companyId) {
+          localStorage.setItem('active_company_id', cfg.companyId);
+        }
+        if (cfg.globalSettings) {
+          localStorage.setItem('vms_global_settings', JSON.stringify(cfg.globalSettings));
+        }
+        if (cfg.primaryColor) {
+          document.documentElement.style.setProperty('--color-primary', cfg.primaryColor);
+        }
+      });
+    </script>
+
     <script type="module" crossorigin src="./assets/index-DEdtx70i.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/vendor-B0cf84_t.js">
     <link rel="modulepreload" crossorigin href="./assets/motion-DtskExJk.js">

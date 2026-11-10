@@ -1,21 +1,13 @@
 import { Application, AppMode, BrandingConfig } from '@/types';
 import { ApiClient } from '@/lib/api/client';
-import { MOCK_APPLICATIONS } from '@/mock/data';
-
-let localApplicationsStore: Application[] = [...MOCK_APPLICATIONS];
 
 export const applicationService = {
   async getApplications(): Promise<Application[]> {
-    try {
-      const apps = await ApiClient.get<Application[]>('applications');
-      if (Array.isArray(apps)) {
-        return apps;
-      }
-    } catch (e: any) {
-      if (e.statusCode !== undefined) throw e;
-      console.warn('API getApplications offline, fallback to local store:', e.message);
+    const apps = await ApiClient.get<Application[]>('applications');
+    if (Array.isArray(apps)) {
+      return apps;
     }
-    return [...localApplicationsStore];
+    return [];
   },
 
   async getApplicationById(id: string): Promise<Application | undefined> {
@@ -24,11 +16,13 @@ export const applicationService = {
       if (app && app.id) {
         return app;
       }
+      return undefined;
     } catch (e: any) {
-      if (e.statusCode !== undefined) throw e;
-      console.warn(`API getApplicationById(${id}) offline, fallback to local store:`, e.message);
+      if (e.statusCode === 404) {
+        return undefined;
+      }
+      throw e;
     }
-    return localApplicationsStore.find((app) => app.id === id || app.slug === id);
   },
 
   async createApplication(payload: {
@@ -47,74 +41,29 @@ export const applicationService = {
       connectorType: string;
       endpointUrl: string;
     };
+    configuration?: any;
   }): Promise<Application> {
     const formattedPayload = {
       ...payload,
       mode: payload.mode === 'integration_hub' ? 'INTEGRATION_HUB' : 'STANDALONE',
     };
 
-    try {
-      const createdApp = await ApiClient.post<Application>('applications', formattedPayload);
-      if (createdApp && createdApp.id) {
-        localApplicationsStore.unshift(createdApp);
-        return createdApp;
-      }
-    } catch (e: any) {
-      console.warn('API createApplication error or offline, saving to local store:', e.message);
+    // Real persistence: Call the NestJS backend to persist into PostgreSQL
+    // Throws real error if backend is unavailable or unauthenticated
+    const createdApp = await ApiClient.post<Application>('applications', formattedPayload);
+    if (!createdApp || !createdApp.id) {
+      throw new Error('Backend failed to return persisted application record.');
     }
-
-    const fallbackApp: Application = {
-      id: `app-${Date.now()}`,
-      slug: payload.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      name: payload.name,
-      description: payload.description,
-      industry: payload.industry,
-      type: payload.type,
-      mode: payload.mode,
-      status: 'active',
-      templateId: payload.templateId,
-      templateName: payload.templateName,
-      modules: payload.modules,
-      usersCount: 1,
-      environment: 'staging',
-      branding: payload.branding,
-      targetBackend: payload.targetBackend,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      ...(payload as any),
-    };
-    localApplicationsStore.unshift(fallbackApp);
-    return fallbackApp;
+    return createdApp;
   },
 
   async updateBranding(id: string, branding: BrandingConfig): Promise<Application | undefined> {
-    try {
-      const updated = await ApiClient.patch<Application>(`applications/${id}`, { branding });
-      if (updated && updated.id) {
-        return updated;
-      }
-    } catch (e: any) {
-      if (e.statusCode !== undefined) throw e;
-      console.warn(`API updateBranding(${id}) failed, updating local store:`, e.message);
-    }
-
-    const appIndex = localApplicationsStore.findIndex((a) => a.id === id);
-    if (appIndex !== -1) {
-      localApplicationsStore[appIndex].branding = branding;
-      localApplicationsStore[appIndex].updatedAt = new Date().toISOString();
-      return localApplicationsStore[appIndex];
-    }
-    return undefined;
+    const updated = await ApiClient.patch<Application>(`applications/${id}`, { branding });
+    return updated;
   },
 
   async deleteApplication(id: string): Promise<boolean> {
-    try {
-      await ApiClient.delete(`applications/${id}`);
-    } catch (e: any) {
-      if (e.statusCode !== undefined) throw e;
-      console.warn(`API deleteApplication(${id}) failed, updating local store:`, e.message);
-    }
-    localApplicationsStore = localApplicationsStore.filter((a) => a.id !== id);
+    await ApiClient.delete(`applications/${id}`);
     return true;
   },
 
@@ -122,40 +71,19 @@ export const applicationService = {
     id: string,
     environment: 'development' | 'staging' | 'production',
   ): Promise<Application | undefined> {
-    try {
-      const updated = await ApiClient.patch<Application>(`applications/${id}`, {
-        environment,
-        status: 'active',
-      });
-      if (updated && updated.id) {
-        return updated;
-      }
-    } catch (e: any) {
-      if (e.statusCode !== undefined) throw e;
-      console.warn(`API deployApplication(${id}) failed, updating local store:`, e.message);
-    }
-
-    const appIndex = localApplicationsStore.findIndex((a) => a.id === id);
-    if (appIndex !== -1) {
-      localApplicationsStore[appIndex].environment = environment;
-      localApplicationsStore[appIndex].status = 'active';
-      localApplicationsStore[appIndex].updatedAt = new Date().toISOString();
-      return localApplicationsStore[appIndex];
-    }
-    return undefined;
+    const updated = await ApiClient.patch<Application>(`applications/${id}`, {
+      environment,
+      status: 'active',
+    });
+    return updated;
   },
 
   async getApplicationModules(id: string): Promise<any[]> {
-    try {
-      const res = await ApiClient.get<any>(`applications/${id}/modules`);
-      if (Array.isArray(res)) {
-        return res;
-      } else if (res && Array.isArray(res.modules)) {
-        return res.modules;
-      }
-    } catch (e: any) {
-      if (e.statusCode !== undefined) throw e;
-      console.warn(`API getApplicationModules(${id}) failed:`, e.message);
+    const res = await ApiClient.get<any>(`applications/${id}/modules`);
+    if (Array.isArray(res)) {
+      return res;
+    } else if (res && Array.isArray(res.modules)) {
+      return res.modules;
     }
     return [];
   },

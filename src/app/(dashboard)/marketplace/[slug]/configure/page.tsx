@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { marketplaceService, MarketplaceAsset } from '@/services/marketplaceService';
 import { applicationService } from '@/services/applicationService';
+import { authService } from '@/services/authService';
 import { VMS_MODULES } from '@/data/modules/vms';
 import { cn } from '@/lib/utils';
 
@@ -76,8 +77,27 @@ export default function VmsConfigurationWizardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const [authenticatedOrgId, setAuthenticatedOrgId] = useState<string | null>(null);
+
   useEffect(() => {
     loadAsset();
+    // Load authenticated organization context
+    const user = authService.getCurrentUserFromStorage();
+    if (user) {
+      const rawOrg = (user as any).organization;
+      const orgObj = typeof rawOrg === 'object' && rawOrg !== null ? rawOrg : null;
+      const orgNameStr = orgObj?.name || (typeof rawOrg === 'string' ? rawOrg : '') || user.organizationName;
+      if (orgNameStr) {
+        setOrgName(orgNameStr);
+      }
+      if (user.email) {
+        setAdminEmail(user.email);
+      }
+      const orgId = user.organizationId || orgObj?.id;
+      if (orgId) {
+        setAuthenticatedOrgId(orgId);
+      }
+    }
   }, [slug]);
 
   const loadAsset = async () => {
@@ -105,6 +125,18 @@ export default function VmsConfigurationWizardPage() {
     setSubmitting(true);
     setSubmitError(null);
 
+    // Verify user is authenticated
+    const currentUser = authService.getCurrentUserFromStorage();
+    const rawOrg = (currentUser as any)?.organization;
+    const orgObj = typeof rawOrg === 'object' && rawOrg !== null ? rawOrg : null;
+    const effectiveOrgId = authenticatedOrgId || currentUser?.organizationId || orgObj?.id;
+
+    if (!currentUser || !effectiveOrgId) {
+      setSubmitError('Authentication required: You must be logged in with a valid organization account to provision applications.');
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const selectedModulesData = VMS_MODULES.filter((m) => selectedModuleIds.includes(m.id));
 
@@ -131,7 +163,7 @@ export default function VmsConfigurationWizardPage() {
           connectorType: 'REST_MANAGED_SCOPED',
           endpointUrl: 'https://api-securepass.prajai.in/api/',
         },
-        // Customization & Customer Isolation Profile
+        // Verified Customer Tenant Isolation Profile
         configuration: {
           portalMode,
           facilityName,
@@ -142,17 +174,20 @@ export default function VmsConfigurationWizardPage() {
           customFields: customizationType === 'customized' ? customFields : null,
           approvalWorkflow,
           isolationMode: 'shared_tenant_scoped',
-          organizationScopeId: `org-${Date.now().toString(36)}`,
+          organizationScopeId: effectiveOrgId, // Authentic organization ID from verified session
           deployedAt: new Date().toISOString(),
           status: 'CONFIGURED',
         },
       };
 
       const created = await applicationService.createApplication(payload as any);
+      if (!created || !created.id) {
+        throw new Error('Application creation did not return a valid persistent ID.');
+      }
       router.push(`/applications/${created.id}`);
     } catch (err: any) {
       console.error('Failed to register application', err);
-      setSubmitError(err.message || 'Failed to save application configuration. Please retry.');
+      setSubmitError(err.message || 'Failed to save application configuration to database. Please check your credentials and retry.');
     } finally {
       setSubmitting(false);
     }
