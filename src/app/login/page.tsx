@@ -48,10 +48,23 @@ export default function LoginPage() {
     }
   };
 
-  const fillDemoAccount = (demoEmail: string) => {
+  const fillDemoAccount = async (demoEmail: string, autoSubmit = true) => {
     setEmail(demoEmail);
     setPassword('DemoPass123!');
     setErrorMsg(null);
+    setSessionExpiredMsg(null);
+
+    if (autoSubmit) {
+      setLoggingIn(true);
+      try {
+        await authService.login(demoEmail, 'DemoPass123!');
+        router.push(redirectPath || '/dashboard');
+      } catch (err: any) {
+        setErrorMsg(err.message || 'Login failed. Please verify credentials.');
+      } finally {
+        setLoggingIn(false);
+      }
+    }
   };
 
   return (
@@ -150,9 +163,13 @@ export default function LoginPage() {
 
         <div className="pt-2 text-center text-xs text-[#5A7165]">
           Need an enterprise sandbox workspace?{' '}
-          <Link href="/applications/create" className="font-bold text-[#3F7659] hover:underline">
-            Create Application
-          </Link>
+          <button
+            type="button"
+            onClick={() => fillDemoAccount('alexander@launchpad-os.com', true)}
+            className="font-bold text-[#3F7659] hover:underline"
+          >
+            Launch as Admin & Create Application
+          </button>
         </div>
       </div>
     </div>

@@ -110,6 +110,42 @@ export class ApiClient {
       if (err.statusCode) {
         throw err;
       }
+
+      // Resilient fallback between localhost:4000 and 127.0.0.1:4000 for local development
+      if (!isRetry && (url.includes('localhost:4000') || url.includes('127.0.0.1:4000'))) {
+        const fallbackUrl = url.includes('localhost:4000')
+          ? url.replace('localhost:4000', '127.0.0.1:4000')
+          : url.replace('127.0.0.1:4000', 'localhost:4000');
+        try {
+          const fallbackRes = await fetch(fallbackUrl, {
+            ...options,
+            headers,
+          });
+          const responseText = await fallbackRes.text();
+          let data: any;
+          try {
+            data = responseText ? JSON.parse(responseText) : {};
+          } catch {
+            data = { message: responseText };
+          }
+          if (!fallbackRes.ok) {
+            const errorMessage =
+              data.message ||
+              (Array.isArray(data.errors) ? data.errors.join(', ') : null) ||
+              `HTTP Error ${fallbackRes.status}: ${fallbackRes.statusText}`;
+            const error = new Error(errorMessage) as any;
+            error.statusCode = fallbackRes.status;
+            error.data = data;
+            throw error;
+          }
+          return data as T;
+        } catch (fallbackErr: any) {
+          if (fallbackErr.statusCode) {
+            throw fallbackErr;
+          }
+        }
+      }
+
       // Network or offline error
       const networkError = new Error(
         err.message || 'Unable to connect to LaunchPad API. Please check backend server connection.',

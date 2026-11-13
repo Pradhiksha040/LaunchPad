@@ -61,7 +61,7 @@ export default function LandingPage() {
           <nav className="hidden md:flex items-center gap-8 text-xs font-bold text-[#5A7165]">
             <a href="#how-it-works" className="hover:text-[#3F7659] transition-colors">How It Works</a>
             <a href="#modes" className="hover:text-[#3F7659] transition-colors">Dual Operational Modes</a>
-            <a href="#templates" className="hover:text-[#3F7659] transition-colors">Templates</a>
+            <Link href="/templates" className="hover:text-[#3F7659] transition-colors">Templates</Link>
             <a href="#pricing" className="hover:text-[#3F7659] transition-colors">Pricing</a>
             <a href="#faq" className="hover:text-[#3F7659] transition-colors">FAQ</a>
           </nav>
@@ -84,7 +84,7 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative pt-16 pb-20 md:pt-24 md:pb-28 px-6 max-w-7xl mx-auto text-center space-y-8">
+      <section id="how-it-works" className="relative pt-16 pb-20 md:pt-24 md:pb-28 px-6 max-w-7xl mx-auto text-center space-y-8">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#DDEEDF] border border-[#C5E2C8] text-xs font-extrabold text-[#173C2D] shadow-xs">
           <Sparkles size={14} className="text-[#3F7659]" /> Enterprise Reusable Application Platform
         </div>

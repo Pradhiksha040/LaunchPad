@@ -362,6 +362,11 @@ export default function CreateApplicationWizardPage() {
   ];
 
   const handleNext = () => {
+    if (step === 1 && !name.trim()) {
+      setCreationError('Application Name is required. Please provide a name to proceed.');
+      return;
+    }
+    setCreationError(null);
     if (step < 6) setStep(step + 1);
     else if (step === 6) {
       triggerCreation();
@@ -490,6 +495,21 @@ export default function CreateApplicationWizardPage() {
 
       {/* Main Wizard Card Container */}
       <div className="bg-white border border-[#E2ECE5] rounded-2xl p-6 md:p-8 shadow-xs">
+        {creationError && step < 7 && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between text-xs text-red-800 animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} className="text-red-600 shrink-0" />
+              <span className="font-semibold">{creationError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCreationError(null)}
+              className="text-red-500 hover:text-red-700 font-bold ml-4"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* STEP 1: Basic Application Details */}
         {step === 1 && (
